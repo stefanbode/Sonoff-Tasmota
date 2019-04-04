@@ -4,13 +4,12 @@ python:
 sudo: false
 install:
   - pip install -U platformio
-  - mkdir /tmp/build
 
 script:
-  - platformio run --build-dir="/tmp/build"  --keep-build-dir
+  - platformio run &&  mv -v -f pioenvs/sonoff/firmware.bin ~/sonoff.bin
 deploy:
   provider: releases
   api_key:
     secure: $GITHUB_TOKEN
-  file: "/tmp/build/.pioenvs/sonoff/firmware.bin"
+  file: ~/sonoff.bin
   draft: true
