@@ -15,5 +15,5 @@ deploy:
   provider: releases
   api_key:
     secure: $GITHUB_TOKEN
-  file: ".pioenvs/sonoff/firmware.bin"
+  file: "/home/travis/build/roondar/Sonoff-Tasmota/.pioenvs/sonoff/firmware.bin"
   draft: true
