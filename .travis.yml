@@ -12,6 +12,6 @@ deploy:
   provider: releases
   api_key:
     secure: $GITHUB_TOKEN
-  file: "~/sonoff.bin"
+  file: "/home/travis/sonoff.bin"
   draft: true
   skip_cleanup: true
