@@ -9,7 +9,7 @@ install:
   - pip install -U platformio
 
 script:
-  - platformio run && pwd && ls -al
+  - platformio run && pwd && ls -al .pioenvs/sonoff/
 
 deploy:
   provider: releases
