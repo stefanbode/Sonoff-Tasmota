@@ -2,11 +2,12 @@ language: python
 python:
   - '2.7'
 sudo: false
+cache: pip
 install:
   - pip install -U platformio
 
 script:
-  - platformio run &&  mv -v -f pioenvs/sonoff/firmware.bin ~/sonoff.bin
+  - platformio run &&  mv -v -f .pioenvs/sonoff/firmware.bin ~/sonoff.bin
 deploy:
   provider: releases
   api_key:
