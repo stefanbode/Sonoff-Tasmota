@@ -1,4 +1,45 @@
 <img src="/tools/logo/TASMOTA_FullLogo_Vector.svg" alt="Logo" align="right" height="76"/>
+## Stefan Bode fork of Tasmota-Master
+I keep this version in sync with the current development of the master. Anyhow my use case is a little bit different. Even, if I have some SONOFF devices, I like to build(solder) my own based on different versions of the ESP8266, depending on my different requirements (batterie, external Antenna, add on I2C devices and others). Additionally I try to improve the overall project.
+
+Additional features:
+- DeepSleep support up to 136 Years (deepsleep=xxx [sec]). Support also 1day or more deepsleep. Just define deepsleep e.g. 1 day = 86400. (wakes up every hour for <0.3 seconds until time reached. just set deepsleep through serial or MQTT to a value in sec from 10 - 4.294.967.295 (136 Years :-))
+- Improved Startuptime incl TLS MQTT and measurement in <9 sek
+- Support for I2C 8-channel DIO extension board PCF-8574 (large extension to support 32 relays and pulsetimers on 8 relays (can be changed by changing constant MAX_PULSETIMER).
+- Report total UPTIME (seconds) between two deepsleep cycle. This allows to see uptime, even if connect was not successfull or there was a reboot. Using RTC memory to ensure correct uptime
+- Added support of "counterdevider[1..MAX_COUNTERS]" (serial and MQTT command), to count only the 1 count every counterdeviderX impulses (max 65.000 impulses = 1 count, default 1s).
+- Added Support for Shutter use-Case. In this case two relays are paired into one switch. Based on the value on the first relay the second relay will set automatically. Use Setoption81 to set it. See Wiki.
+- Added more support for the shutter Use-Case. The Setoption80 is required, if someone changes the target position if the shutter is still operating. Please see Shutter wiki for more details.
+- Added full support on RULES with shutter. Full control and new events Shutter#MOVING and Shutter#MOVED
+- Added Alexa support for shutters through HUE Dimmer functionality. Not perfect but ok.
+
+Changelog:
+1.14 2019-10-01
+- added the long awaiting functionality for detailed position calibration of the Shutter
+
+1.13 2019-09-29
+- ensure deepsleep is at least MIN_DEEPSLEEP_TIME (default 5sec) to avoid infinite sleep
+
+1.12 2019-09-29
+- fixed issue that configuration did not stay.
+
+1.12 2019-09-25
+- added sht[ ] for scripts to access the position of a shutter.
+
+1.10 2019-09-04
+- Fixed issue with wakeup not working. Calculate clock correction factor to meet deepsleep time. Real deepsleep is up to 10% related on chip temperature. Correction factor will continuously improved at every wakeup. NTP Timeserver is required.
+
+1.09 2019-09-02
+- Fixed shutter: Relay executed by MQTT or serial did not get recognized by shutter driver.
+
+1.08 2019-09-01
+- Added two new triggers to rules (System#PreTele and System#PostTele). Mainly to switch on/off devices before and after TelePeriod
+- changed deepsleep time calculation. Wakeup will now 100% in sync with time. E.g. you startet at 8:00am and define 3600 seconds, the device will always wakeup near the full hour. A slightly shift will not happen anymore
+
+1.07 2019-08-30
+- Added two new triggers to rules to better control the shutters (SHUTTER#MOVING and SHUTTER#MOVED). Last one reports actual position of the shutter.
+
+**Note that deep sleep on ESP-01 is not possible without hardware modifications because it's required to connect GPIO16 to RST, see https://github.com/stefanbode/Sonoff-Tasmota/issues/40. The same applies most likely to other modules like ESP-02, ESP-04 etc**
 
 # Sonoff-Tasmota
 Alternative firmware for _ESP8266 based devices_ like [iTead](https://www.itead.cc/) _**Sonoff**_ with **web UI, rules and timers, OTA updates, custom device templates and sensor support**. Allows control over **MQTT**, **HTTP**, **Serial** and **KNX** for integrations with smart home systems. Written for Arduino IDE and PlatformIO.

@@ -195,6 +195,10 @@ const uint32_t LOOP_SLEEP_DELAY = 50;       // Lowest number of milliseconds to 
 #define DAWN_NAUTIC            -12.0
 #define DAWN_ASTRONOMIC        -18.0
 
+//STB mod
+#define MAX_DEEPSLEEP_CYCLE    3600         // Maximum time for a deepsleep
+#define MIN_DEEPSLEEP_TIME      5
+//end
 // Sensor and Commands definition for KNX Driver
 #define KNX_TEMPERATURE        17
 #define KNX_HUMIDITY           18
@@ -278,6 +282,9 @@ enum XsnsFunctions {FUNC_SETTINGS_OVERRIDE, FUNC_PIN_STATE, FUNC_MODULE_INIT, FU
                     FUNC_MQTT_SUBSCRIBE, FUNC_MQTT_INIT, FUNC_MQTT_DATA,
                     FUNC_SET_POWER, FUNC_SET_DEVICE_POWER, FUNC_SHOW_SENSOR,
                     FUNC_ENERGY_EVERY_SECOND, FUNC_ENERGY_RESET,
+                    //stb mod
+                    FUNC_AFTER_TELEPERIOD,
+                    //
                     FUNC_RULES_PROCESS, FUNC_SERIAL, FUNC_FREE_MEM, FUNC_BUTTON_PRESSED,
                     FUNC_WEB_ADD_BUTTON, FUNC_WEB_ADD_MAIN_BUTTON, FUNC_WEB_ADD_HANDLER, FUNC_SET_CHANNELS};
 

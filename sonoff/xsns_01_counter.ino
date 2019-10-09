@@ -27,12 +27,15 @@
 #define D_PRFX_COUNTER "Counter"
 #define D_CMND_COUNTERTYPE "Type"
 #define D_CMND_COUNTERDEBOUNCE "Debounce"
+//stb mod
+#define D_CMND_COUNTERDEVIDER "Devider"
 
 const char kCounterCommands[] PROGMEM = D_PRFX_COUNTER "|"  // Prefix
-  "|" D_CMND_COUNTERTYPE "|" D_CMND_COUNTERDEBOUNCE ;
+  "|" D_CMND_COUNTERTYPE "|" D_CMND_COUNTERDEBOUNCE "|" D_CMND_COUNTERDEVIDER;
 
 void (* const CounterCommand[])(void) PROGMEM =
-  { &CmndCounter, &CmndCounterType, &CmndCounterDebounce };
+  { &CmndCounter, &CmndCounterType, &CmndCounterDebounce, &CmndCounterDevider};
+//end
 
 unsigned long last_counter_timer[MAX_COUNTERS]; // Last counter time in micro seconds
 uint8_t counter_no_pullup = 0;              // Counter input pullup flag (1 = No pullup)
@@ -101,6 +104,12 @@ void CounterInit(void)
     if (pin[GPIO_CNTR1 +i] < 99) {
       pinMode(pin[GPIO_CNTR1 +i], bitRead(counter_no_pullup, i) ? INPUT : INPUT_PULLUP);
       attachInterrupt(pin[GPIO_CNTR1 +i], counter_callbacks[i], FALLING);
+// STB mode
+      //avoid DIV 0 on unitiialized
+      if (Settings.pulse_devider[i] == 0 || Settings.pulse_devider[i] == 65535 ) {
+        Settings.pulse_devider[i] = COUNTERDEVIDER;
+      }
+// end
     }
   }
 }
@@ -125,7 +134,9 @@ void CounterShow(bool json)
         dtostrfd((double)RtcSettings.pulse_counter[i] / 1000000, 6, counter);
       } else {
         dsxflg++;
-        snprintf_P(counter, sizeof(counter), PSTR("%lu"), RtcSettings.pulse_counter[i]);
+	//STB mod
+	dtostrfd(RtcSettings.pulse_counter[i]/Settings.pulse_devider[i], 0, counter);
+	//end
       }
 
       if (json) {
@@ -136,7 +147,10 @@ void CounterShow(bool json)
         header = true;
 #ifdef USE_DOMOTICZ
         if ((0 == tele_period) && (1 == dsxflg)) {
-          DomoticzSensor(DZ_COUNT, RtcSettings.pulse_counter[i]);
+
+	  //STB mod
+          DomoticzSensor(DZ_COUNT, RtcSettings.pulse_counter[i]/Settings.pulse_devider[i]);
+	  //end
           dsxflg++;
         }
 #endif  // USE_DOMOTICZ
@@ -164,15 +178,18 @@ void CmndCounter(void)
 {
   if ((XdrvMailbox.index > 0) && (XdrvMailbox.index <= MAX_COUNTERS)) {
     if ((XdrvMailbox.data_len > 0) && (pin[GPIO_CNTR1 + XdrvMailbox.index -1] < 99)) {
+//STB mod
+      Settings.pulse_devider[XdrvMailbox.index-1] = Settings.pulse_devider[XdrvMailbox.index-1] == 0 ? COUNTERDEVIDER : Settings.pulse_devider[XdrvMailbox.index-1];
       if ((XdrvMailbox.data[0] == '-') || (XdrvMailbox.data[0] == '+')) {
-        RtcSettings.pulse_counter[XdrvMailbox.index -1] += XdrvMailbox.payload;
-        Settings.pulse_counter[XdrvMailbox.index -1] += XdrvMailbox.payload;
+        RtcSettings.pulse_counter[XdrvMailbox.index -1] += XdrvMailbox.payload * Settings.pulse_devider[XdrvMailbox.index-1];
+        Settings.pulse_counter[XdrvMailbox.index -1] += XdrvMailbox.payload * Settings.pulse_devider[XdrvMailbox.index-1];
       } else {
-        RtcSettings.pulse_counter[XdrvMailbox.index -1] = XdrvMailbox.payload;
-        Settings.pulse_counter[XdrvMailbox.index -1] = XdrvMailbox.payload;
+        RtcSettings.pulse_counter[XdrvMailbox.index -1] = XdrvMailbox.payload * Settings.pulse_devider[XdrvMailbox.index-1];
+        Settings.pulse_counter[XdrvMailbox.index -1] = XdrvMailbox.payload * Settings.pulse_devider[XdrvMailbox.index-1];
       }
+//end
     }
-    ResponseCmndIdxNumber(RtcSettings.pulse_counter[XdrvMailbox.index -1]);
+    ResponseCmndIdxNumber(RtcSettings.pulse_counter[XdrvMailbox.index -1]/Settings.pulse_devider[XdrvMailbox.index -1]);
   }
 }
 
@@ -195,6 +212,23 @@ void CmndCounterDebounce(void)
   }
   ResponseCmndNumber(Settings.pulse_counter_debounce);
 }
+
+//stb mod
+void CmndCounterDevider(void)
+{
+    if ((XdrvMailbox.index > 0) && (XdrvMailbox.index <= MAX_COUNTERS)) {
+      if (XdrvMailbox.payload >= 0) {
+        unsigned long _counter;
+        Settings.pulse_devider[XdrvMailbox.index -1] = Settings.pulse_devider[XdrvMailbox.index -1] == 0 ? COUNTERDEVIDER : Settings.pulse_devider[XdrvMailbox.index -1];
+        _counter = RtcSettings.pulse_counter[XdrvMailbox.index -1]/Settings.pulse_devider[XdrvMailbox.index -1];
+        Settings.pulse_devider[XdrvMailbox.index -1] = XdrvMailbox.payload;
+        RtcSettings.pulse_counter[XdrvMailbox.index -1] = _counter * Settings.pulse_devider[XdrvMailbox.index -1];
+      }
+      ResponseCmndNumber(Settings.pulse_devider[XdrvMailbox.index -1]);
+    }
+}
+ //end
+
 
 /*********************************************************************************************\
  * Interface

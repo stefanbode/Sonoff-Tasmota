@@ -206,6 +206,9 @@ enum UserSelectablePins {
   GPIO_DDSU666_RX,     // DDSU666 Serial interface
   GPIO_SM2135_CLK,     // SM2135 Clk
   GPIO_SM2135_DAT,     // SM2135 Dat
+//STB mod
+  GPIO_SEN_SLEEP,
+//end
   GPIO_SENSOR_END };
 
 // Programmer selectable GPIO functionality
@@ -283,6 +286,9 @@ const char kSensorNames[] PROGMEM =
   D_SENSOR_DDS2382_TX "|" D_SENSOR_DDS2382_RX "|"
   D_SENSOR_DDSU666_TX "|" D_SENSOR_DDSU666_RX "|"
   D_SENSOR_SM2135_CLK "|" D_SENSOR_SM2135_DAT "|"
+  //STB mod
+  D_SENSOR_DEEPSLEEP "|"
+  //end
   ;
 
 // User selectable ADC0 functionality
@@ -515,6 +521,9 @@ const uint8_t kGpioNiceList[] PROGMEM = {
 #endif
   GPIO_TXD,            // Serial interface
   GPIO_RXD,            // Serial interface
+  // stb mod
+  GPIO_SEN_SLEEP, 
+  //end
 #ifdef USE_I2C
   GPIO_I2C_SCL,        // I2C SCL
   GPIO_I2C_SDA,        // I2C SDA

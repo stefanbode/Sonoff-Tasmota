@@ -194,6 +194,13 @@
 #define D_LOG_SOME_SETTINGS_RESET "Some settings have been reset"
 
 // Commands sonoff.ino
+
+//stb mode
+#define D_CMND_MQTTENABLE "MqttEnable"
+#define D_CMND_DEEPSLEEP "DeepSleep"
+#define D_SENSOR_DEEPSLEEP "DeepSleep Switch"
+// end
+
 #define D_CMND_BACKLOG "Backlog"
 #define D_CMND_DELAY "Delay"
 #define D_CMND_STATUS "Status"

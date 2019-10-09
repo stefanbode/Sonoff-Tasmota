@@ -120,6 +120,10 @@ int16_t save_data_counter;                  // Counter and flag for config save 
 RulesBitfield rules_flag;                   // Rule state flags (16 bits)
 uint8_t state_250mS = 0;                    // State 250msecond per second flag
 uint8_t latching_relay_pulse = 0;           // Latching relay pulse timer
+//STB mod
+int prep_called = 0;                        // additional flag to detect a proper start of initialize sensors.
+unsigned long last_save_uptime = RtcSettings.uptime;         // Loop timer to calculate ontime
+//end
 uint8_t sleep;                              // Current copy of Settings.sleep
 uint8_t blinkspeed = 1;                     // LED blink rate
 uint8_t pin[GPIO_MAX];                      // Possible pin configurations
@@ -718,11 +722,11 @@ void MqttShowState(void)
     ResponseAppend_P(PSTR(","));
     MqttShowPWMState();
   }
-
-  ResponseAppend_P(PSTR(",\"" D_JSON_WIFI "\":{\"" D_JSON_AP "\":%d,\"" D_JSON_SSID "\":\"%s\",\"" D_JSON_BSSID "\":\"%s\",\"" D_JSON_CHANNEL "\":%d,\"" D_JSON_RSSI "\":%d,\"" D_JSON_LINK_COUNT "\":%d,\"" D_JSON_DOWNTIME "\":\"%s\"}}"),
-    Settings.sta_active +1, Settings.sta_ssid[Settings.sta_active], WiFi.BSSIDstr().c_str(), WiFi.channel(), WifiGetRssiAsQuality(WiFi.RSSI()), WifiLinkCount(), WifiDowntime().c_str());
+  //STB mod
+  ResponseAppend_P(PSTR(",\"" D_JSON_WIFI "\":{\"" D_JSON_AP "\":%d,\"" D_JSON_SSID "\":\"%s\",\"" D_JSON_BSSID "\":\"%s\",\"" D_JSON_CHANNEL "\":%d,\"" D_JSON_RSSI "\":%d,\"" D_JSON_LINK_COUNT "\":%d,\"" D_JSON_DOWNTIME "\":\"%s\",\""  D_CMND_DEEPSLEEP  "\":%d,\"" D_JSON_HEAPSIZE "\":%d}}"),
+    Settings.sta_active +1, Settings.sta_ssid[Settings.sta_active], WiFi.BSSIDstr().c_str(), WiFi.channel(), WifiGetRssiAsQuality(WiFi.RSSI()), WifiLinkCount(), WifiDowntime().c_str(), Settings.deepsleep, ESP.getFreeHeap());
 }
-
+  //end
 void MqttPublishTeleState(void)
 {
   mqtt_data[0] = '\0';
@@ -770,6 +774,14 @@ void PerformEverySecond(void)
 {
   uptime++;
 
+  //STB mod
+  RtcSettings.uptime += ((millis() - last_save_uptime) ) ;
+  //AddLog_P2(LOG_LEVEL_ALL, PSTR("Uptime %ld, Deepsleep up: %ld, telep %ld, last save: %ld"), uptime, RtcSettings.uptime / 1000, tele_period, last_save_uptime);
+  last_save_uptime = millis() ;
+
+  //end
+
+
   if (ntp_synced_message) {
     // Moved here to fix syslog UDP exception 9 during RtcSecond
     AddLog_P2(LOG_LEVEL_DEBUG, PSTR("NTP: Drift %d, (" D_UTC_TIME ") %s, (" D_DST_TIME ") %s, (" D_STD_TIME ") %s"),
@@ -808,11 +820,24 @@ void PerformEverySecond(void)
   ResetGlobalValues();
 
   if (Settings.tele_period) {
-    tele_period++;
-    if (tele_period == Settings.tele_period -1) {
-      XsnsCall(FUNC_PREP_BEFORE_TELEPERIOD);
+    //stb mod
+    // avoid Pre_Tele rule to execute just after boot.
+    if (!global_state.mqtt_down) {
+      tele_period++;
     }
-    if (tele_period >= Settings.tele_period) {
+
+    //AddLog_P2(LOG_LEVEL_ALL, PSTR("Teleperiod %ld"), tele_period);
+    // Start rules PRE_TELE 3 seconds before because some driver like d18b20 need some time to come up
+    if (tele_period >= Settings.tele_period -3 && prep_called == 0) {
+
+      //STB mode
+      // sensores must be called later if driver switch on e.g. power.
+      XdrvCall(FUNC_PREP_BEFORE_TELEPERIOD);
+      XsnsCall(FUNC_PREP_BEFORE_TELEPERIOD);
+      prep_called = 1;
+      // end stb mod
+    }
+    if (tele_period >= Settings.tele_period && prep_called == 1 && MqttIsConnected()) {
       tele_period = 0;
 
       MqttPublishTeleState();
@@ -824,6 +849,70 @@ void PerformEverySecond(void)
         RulesTeleperiod();  // Allow rule based HA messages
 #endif  // USE_RULES
       }
+      //STB mod
+      XdrvCall(FUNC_AFTER_TELEPERIOD);
+      uint8 disable_deepsleep_switch = 0;
+      if (pin[GPIO_SEN_SLEEP] < 99) {
+        disable_deepsleep_switch = !digitalRead(pin[GPIO_SEN_SLEEP]);
+      }
+      // new function AFTER_TELEPERIOD can take some time therefore <2
+      if (Settings.deepsleep > 10 && Settings.deepsleep < 4294967295 && !disable_deepsleep_switch && tele_period < 2 && prep_called == 1 ) {
+        SettingsSaveAll();
+        Response_P(S_OFFLINE);
+        MqttPublishPrefixTopic_P(TELE, PSTR(D_LWT), true);  // Offline or remove previous retained topic
+        yield();
+        // deepsleep_slip is ideally 10.000 == 100%
+        // typically the device has up to 4% slip. Anything else is a wrong setting in the deepsleep_slip
+        // therefore all values >110% or <90% will be resetted to 100% to avoid crazy sleep times.
+        // This should normally never executed, but can happen an manual wakeup and problems during wakeup
+        if (RtcSettings.nextwakeup == 0 || RtcSettings.deepsleep_slip < 9000 || RtcSettings.deepsleep_slip > 11000 || RtcSettings.nextwakeup > UtcTime()+Settings.deepsleep) {
+          AddLog_P2(LOG_LEVEL_ERROR, PSTR("Reset wrong settings wakeup: %ld, slip %ld"),  RtcSettings.nextwakeup, RtcSettings.deepsleep_slip );
+          RtcSettings.nextwakeup = 0;
+          RtcSettings.deepsleep_slip = 10000;
+          //AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR("new settings wakeup: %ld, slip %ld"),  RtcSettings.nextwakeup, RtcSettings.deepsleep_slip );
+        }
+        // timeslip in 0.1 seconds between the real wakeup and the calculated wakeup
+        // because deepsleep is in second and timeslip in 0.1 sec the compare always check if the slip is in the 10% range
+        int16_t timeslip = (int16_t)(RtcSettings.nextwakeup+RtcSettings.uptime/1000-UtcTime())*10;
+        AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR("Timeslip 0.1 sec:? %d < %d < %ld"),  -Settings.deepsleep, timeslip, Settings.deepsleep );
+        //allow 10% of deepsleep error to count as valid deepsleep; expecting 3-4%
+        // if more then 10% timeslip = 0 == non valid wakeup; maybe manual
+        timeslip = timeslip < -(int32_t)Settings.deepsleep ? 0 : (timeslip > (int32_t)Settings.deepsleep ? 0 : 1);
+        AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR("Normal deepsleep? %d"),  timeslip );
+        if (timeslip) {
+          RtcSettings.deepsleep_slip = (Settings.deepsleep+RtcSettings.nextwakeup-UtcTime()) *RtcSettings.deepsleep_slip / (Settings.deepsleep-(RtcSettings.uptime/1000));
+          //Avoid crazy numbers. Again maximum 10% deviation.
+          AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR("%% calculate drift %ld"),  RtcSettings.deepsleep_slip );
+          RtcSettings.deepsleep_slip = tmin(tmax(RtcSettings.deepsleep_slip, 9000),11000);
+
+          AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR("%% new drift %ld"),  RtcSettings.deepsleep_slip );
+          RtcSettings.nextwakeup += Settings.deepsleep;
+        }
+        // it may happen that wakeup in just <5 seconds in future
+        // in this case also add deepsleep to nextwakeup
+        if (RtcSettings.nextwakeup <= UtcTime() - MIN_DEEPSLEEP_TIME) {
+          // ensure nextwakeup is at least in the future
+          RtcSettings.nextwakeup += ( ((UtcTime() + MIN_DEEPSLEEP_TIME - RtcSettings.nextwakeup) / Settings.deepsleep) + 1)*Settings.deepsleep;
+        }
+        Response_P(PSTR("%d"), RtcSettings.nextwakeup);
+        MqttPublishPrefixTopic_P(TELE, PSTR(D_DOMOTICZ_UPDATE_TIMER), false);  // Offline or remove previous retained topic
+        yield();
+        MqttDisconnect();
+        String dt = GetDT(RtcSettings.nextwakeup+LocalTime()- UtcTime());  // 2017-03-07T11:08:02
+        AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR("Next wakeup %s"), (char*)dt.c_str());
+        //limit sleeptime to MAX_DEEPSLEEP_CYCLE
+        //uint32_t sleeptime = MAX_DEEPSLEEP_CYCLE < (RtcSettings.nextwakeup - UtcTime()) ? (uint32_t)MAX_DEEPSLEEP_CYCLE : RtcSettings.nextwakeup - UtcTime();
+        uint32_t sleeptime = tmin((uint32_t)MAX_DEEPSLEEP_CYCLE , RtcSettings.nextwakeup - UtcTime());
+        RtcSettings.uptime = 0;
+        RtcSettings.ultradeepsleep =  RtcSettings.nextwakeup - UtcTime();
+
+        RtcSettingsSave();
+        AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR("Sleeptime %d sec, deepsleep_slip %ld"), sleeptime, RtcSettings.deepsleep_slip);
+        ESP.deepSleep(100 * RtcSettings.deepsleep_slip * sleeptime);
+        yield();
+      }
+      prep_called = 0;
+      //end
     }
   }
 
@@ -1489,12 +1578,42 @@ void setup(void)
   snprintf_P(my_version, sizeof(my_version), PSTR("%d.%d.%d"), VERSION >> 24 & 0xff, VERSION >> 16 & 0xff, VERSION >> 8 & 0xff);  // Release version 6.3.0
   if (VERSION & 0xff) {  // Development or patched version 6.3.0.10
     snprintf_P(my_version, sizeof(my_version), PSTR("%s.%d"), my_version, VERSION & 0xff);
+    //stb mod
+    if (STB_VERSION & 0xff) {
+      snprintf_P(my_version, sizeof(my_version), PSTR("%s stb-%d.%d"), my_version, STB_VERSION >> 8 & 0xff, STB_VERSION & 0xff);
+    }
+    //end
   }
   char code_image[20];
   snprintf_P(my_image, sizeof(my_image), PSTR("(%s)"), GetTextIndexed(code_image, sizeof(code_image), CODE_IMAGE, kCodeImage));
 
   SettingsLoad();
   SettingsDelta();
+
+  //STB mod
+  uint8 disable_deepsleep_switch = 0;
+  if (pin[GPIO_SEN_SLEEP] < 99) {
+    disable_deepsleep_switch = !digitalRead(pin[GPIO_SEN_SLEEP]);
+    if (disable_deepsleep_switch) {
+      RtcSettings.ultradeepsleep = 0;
+    }
+  }
+  if (RtcSettings.ultradeepsleep > MAX_DEEPSLEEP_CYCLE && RtcSettings.ultradeepsleep < 1700000000) {
+     RtcSettings.ultradeepsleep = RtcSettings.ultradeepsleep - MAX_DEEPSLEEP_CYCLE;
+     RtcReboot.fast_reboot_count = 0;
+     RtcRebootSave();
+     snprintf_P(log_data, sizeof(log_data), PSTR("APP: Remain DeepSleep %d"), RtcSettings.ultradeepsleep);
+     AddLog(LOG_LEVEL_INFO);
+     snprintf_P(log_data, sizeof(log_data), PSTR("APP: online %d"), millis());
+     AddLog(LOG_LEVEL_INFO);
+     unsigned long remaining_time = RtcSettings.ultradeepsleep;
+     remaining_time = MAX_DEEPSLEEP_CYCLE < RtcSettings.ultradeepsleep ? MAX_DEEPSLEEP_CYCLE : remaining_time;
+     //RtcSettings.ultradeepsleep = MAX_DEEPSLEEP_CYCLE < RtcSettings.ultradeepsleep ? RtcSettings.ultradeepsleep : 0;
+     RtcSettingsSave();
+     ESP.deepSleep(100 * RtcSettings.deepsleep_slip * remaining_time, WAKE_RF_DEFAULT);
+     yield();
+  }
+  //end
 
   OsWatchInit();
 
@@ -1603,7 +1722,11 @@ void setup(void)
   }
 
   // Issue #526 and #909
-  for (uint32_t i = 0; i < devices_present; i++) {
+  //STB mod
+  uint8_t max_val = (devices_present>MAX_PULSETIMERS?MAX_PULSETIMERS:devices_present);
+
+  for (uint32_t i = 0; i < max_val; i++) {
+  //end
     if (!Settings.flag3.no_power_feedback) {  // #5594 and #5663
       if ((i < MAX_RELAYS) && (pin[GPIO_REL1 +i] < 99)) {
         bitWrite(power, i, digitalRead(pin[GPIO_REL1 +i]) ^ bitRead(rel_inverted, i));

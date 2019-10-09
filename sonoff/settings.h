@@ -384,9 +384,12 @@ struct SYSCFG {
   uint8_t       shutter_position[MAX_SHUTTERS];      // E80
   uint8_t       shutter_startrelay[MAX_SHUTTERS];    // E84
   uint8_t       pcf8574_config[MAX_PCF8574];         // E88
-
-  uint8_t       free_e90[360];             // E90
-
+// stb mode
+  uint8_t       free_e90[344];             // E90
+  unsigned long uptime;                    // FDF
+  uint32_t      deepsleep;                 //FEC
+  uint16_t      pulse_devider[MAX_COUNTERS];     //FF0
+// end
   uint32_t      cfg_timestamp;             // FF8
   uint32_t      cfg_crc32;                 // FFC
 } Settings;
@@ -406,8 +409,14 @@ struct RTCMEM {
   unsigned long pulse_counter[MAX_COUNTERS];  // 29C
   power_t       power;                     // 2AC
   EnergyUsage   energy_usage;              // 2B0
-  uint8_t       free_038[36];              // 2C8
-                                           // 2EC - 2FF free locations
+  //STB mod
+  uint8_t       free_2C8[22];              // 2C8
+  int16_t       deepsleep_slip;
+  unsigned long nextwakeup;
+  unsigned long uptime;
+  uint32_t      ultradeepsleep;
+
+  //end
 } RtcSettings;
 
 struct TIME_T {

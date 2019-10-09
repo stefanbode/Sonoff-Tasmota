@@ -678,6 +678,28 @@ void RulesSetPower(void)
   Rules.new_power = XdrvMailbox.index;
 }
 
+//stb mod
+void RulesBeforeTeleperiod(void)
+{
+  if (Settings.rule_enabled) {  // Any rule enabled
+    char json_event[32];
+
+    strncpy_P(json_event, PSTR("{\"System\":{\"PreTele\":1}}"), sizeof(json_event));
+    RulesProcessEvent(json_event);
+  }
+}
+
+void RulesAfterTeleperiod(void)
+{
+  if (Settings.rule_enabled) {  // Any rule enabled
+    char json_event[32];
+
+    strncpy_P(json_event, PSTR("{\"System\":{\"PostTele\":1}}"), sizeof(json_event));
+    RulesProcessEvent(json_event);
+  }
+}
+//
+
 void RulesTeleperiod(void)
 {
   Rules.teleperiod = true;
