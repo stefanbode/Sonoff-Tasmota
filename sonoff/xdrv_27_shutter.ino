@@ -91,7 +91,7 @@ int32_t ShutterPercentToRealPosition(uint8_t percent,uint8_t index)
 	if (Settings.shutter_set50percent[index] != 50) {
     return  percent <= 5 ?  Settings.shuttercoeff[2][index] * percent : Settings.shuttercoeff[1][index] * percent + Settings.shuttercoeff[0][index];
 	} else {
-    uint16_t realpos;
+    uint32_t realpos;
     // check against DIV 0
     for (uint8_t j=0 ; j < 5 ; j++) {
       if (Settings.shuttercoeff[j][index] == 0) {
@@ -604,7 +604,7 @@ void CmndShutterCalibration(void)  // ????
         }
         for (i=0 ; i < 5 ; i++) {
           Settings.shuttercoeff[i][XdrvMailbox.index-1] = messwerte[i] * 1000 / messwerte[4];
-          AddLog_P2(LOG_LEVEL_INFO, PSTR("Settings.shuttercoeff í: %d, i: %d, value: %d, messwert %d"), i,XdrvMailbox.index-1,Settings.shuttercoeff[i][XdrvMailbox.index-1], messwerte[i]);
+          AddLog_P2(LOG_LEVEL_INFO, PSTR("Settings.shuttercoeff Ã­: %d, i: %d, value: %d, messwert %d"), i,XdrvMailbox.index-1,Settings.shuttercoeff[i][XdrvMailbox.index-1], messwerte[i]);
         }
         ShutterInit();
         ResponseCmndIdxChar(XdrvMailbox.data);
