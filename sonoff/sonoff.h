@@ -195,10 +195,6 @@ const uint32_t LOOP_SLEEP_DELAY = 50;       // Lowest number of milliseconds to 
 #define DAWN_NAUTIC            -12.0
 #define DAWN_ASTRONOMIC        -18.0
 
-//STB mod
-#define MAX_DEEPSLEEP_CYCLE    3600         // Maximum time for a deepsleep
-#define MIN_DEEPSLEEP_TIME      5
-//end
 // Sensor and Commands definition for KNX Driver
 #define KNX_TEMPERATURE        17
 #define KNX_HUMIDITY           18

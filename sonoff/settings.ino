@@ -178,10 +178,6 @@ void RtcSettingsLoad(void)
   if (RtcSettings.valid != RTC_MEM_VALID) {
     memset(&RtcSettings, 0, sizeof(RTCMEM));
     RtcSettings.valid = RTC_MEM_VALID;
-    //STB mod
-    RtcSettings.uptime = Settings.uptime;
-    RtcSettings.ultradeepsleep = 0;
-    //end
     RtcSettings.energy_kWhtoday = Settings.energy_kWhtoday;
     RtcSettings.energy_kWhtotal = Settings.energy_kWhtotal;
     RtcSettings.energy_usage = Settings.energy_usage;

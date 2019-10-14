@@ -27,9 +27,7 @@ const char kTasmotaCommands[] PROGMEM = "|"  // No prefix
   D_CMND_SERIALDELIMITER "|" D_CMND_IPADDRESS "|" D_CMND_NTPSERVER "|" D_CMND_AP "|" D_CMND_SSID "|" D_CMND_PASSWORD "|" D_CMND_HOSTNAME "|" D_CMND_WIFICONFIG "|"
   D_CMND_FRIENDLYNAME "|" D_CMND_SWITCHMODE "|" D_CMND_INTERLOCK "|" D_CMND_TELEPERIOD "|" D_CMND_RESET "|" D_CMND_TIME "|" D_CMND_TIMEZONE "|" D_CMND_TIMESTD "|"
   D_CMND_TIMEDST "|" D_CMND_ALTITUDE "|" D_CMND_LEDPOWER "|" D_CMND_LEDSTATE "|" D_CMND_LEDMASK "|"
-//stb mod
-    D_CMND_DEEPSLEEP "|"
-  //end
+
 #ifdef USE_I2C
   D_CMND_I2CSCAN "|"
 #endif
@@ -45,9 +43,7 @@ void (* const TasmotaCommand[])(void) PROGMEM = {
   &CmndSerialDelimiter, &CmndIpAddress, &CmndNtpServer, &CmndAp, &CmndSsid, &CmndPassword, &CmndHostname, &CmndWifiConfig,
   &CmndFriendlyname, &CmndSwitchMode, &CmndInterlock, &CmndTeleperiod, &CmndReset, &CmndTime, &CmndTimezone, &CmndTimeStd,
   &CmndTimeDst, &CmndAltitude, &CmndLedPower, &CmndLedState, &CmndLedMask,
-  //stb mode
-  &CmndDeepSleep,
-  //end
+
 #ifdef USE_I2C
   &CmndI2cScan,
 #endif
@@ -1003,19 +999,6 @@ void CmndButtonDebounce(void)
   }
   ResponseCmndNumber(Settings.button_debounce);
 }
-
-//STB MOD
-void CmndDeepSleep(void)
-{
-  if ((XdrvMailbox.payload == 0) || ((XdrvMailbox.payload > 10) && (XdrvMailbox.payload < 4294967295))) {
-    Settings.deepsleep = XdrvMailbox.payload;
-    RtcSettings.nextwakeup = 0;
-  }
-  //Response_P( PSTR("{\"" D_CMND_DEEPSLEEP "\":\"%d%s (%d%s)\"}"), Settings.deepsleep, (Settings.flag.value_units) ? " mS" : "", Settings.deepsleep, (Settings.flag.value_units) ? " mS" : "");
-  Response_P(S_JSON_COMMAND_NVALUE, XdrvMailbox.command, Settings.deepsleep);
-}
-//end
-
 
 void CmndSwitchDebounce(void)
 {

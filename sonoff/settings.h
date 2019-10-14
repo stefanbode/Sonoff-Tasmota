@@ -386,7 +386,7 @@ struct SYSCFG {
   uint8_t       pcf8574_config[MAX_PCF8574];         // E88
 // stb mode
   uint8_t       free_e90[344];             // E90
-  unsigned long uptime;                    // FDF
+  unsigned long uptime_deleted;             // FDF
   uint32_t      deepsleep;                 //FEC
   uint16_t      pulse_devider[MAX_COUNTERS];     //FF0
 // end
@@ -413,7 +413,7 @@ struct RTCMEM {
   uint8_t       free_2C8[22];              // 2C8
   int16_t       deepsleep_slip;
   unsigned long nextwakeup;
-  unsigned long uptime;
+  unsigned long uptime_old;
   uint32_t      ultradeepsleep;
 
   //end

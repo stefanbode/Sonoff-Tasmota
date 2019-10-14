@@ -37,7 +37,7 @@ struct PCF8574 {
   uint8_t pin_mask[MAX_PCF8574] = { 0 };
   uint8_t max_connected_ports = 0;        // Max numbers of devices comming from PCF8574 modules
   uint8_t max_devices = 0;                // Max numbers of PCF8574 modules
-  char stype[8];
+  char stype[9];
   bool type = true;
 } Pcf8574;
 
@@ -75,14 +75,15 @@ void Pcf8574Init()
   Pcf8574.type = false;
 
   uint8_t pcf8574_address = PCF8574_ADDR1;
-  for (uint32_t i = 0; i < MAX_PCF8574; i++) {
+  AddLog_P2(LOG_LEVEL_DEBUG, PSTR("PCF: already connected %d"), Pcf8574.max_connected_ports);
+  for (uint32_t i = 0; i <  MAX_PCF8574; i++) {
 
-  //  AddLog_P2(LOG_LEVEL_DEBUG, PSTR("PCF: Probing addr: 0x%x for PCF8574"), pcf8574_address);
+  AddLog_P2(LOG_LEVEL_DEBUG, PSTR("PCF: Probing addr: 0x%x for PCF8574"), pcf8574_address);
 
     if (I2cDevice(pcf8574_address)) {
       I2cSetActive(pcf8574_address);
       Pcf8574.type = true;
-
+      AddLog_P2(LOG_LEVEL_DEBUG, PSTR("PCF:Type %d"), Pcf8574.type);
       Pcf8574.address[Pcf8574.max_devices] = pcf8574_address;
       Pcf8574.max_devices++;
 
@@ -95,6 +96,7 @@ void Pcf8574Init()
     pcf8574_address++;
     if ((PCF8574_ADDR1 + 8) == pcf8574_address) {
       pcf8574_address = PCF8574_ADDR2;
+      i=0;
     }
   }
   if (Pcf8574.max_devices) {
@@ -109,7 +111,7 @@ void Pcf8574Init()
 
       for (uint32_t i = 0; i < 8; i++) {
         uint8_t _result = Settings.pcf8574_config[idx] >> i &1;
-        //AddLog_P2(LOG_LEVEL_DEBUG, PSTR("PCF: I2C shift i %d: %d. Powerstate: %d, devices_present: %d"), i,_result, Settings.power>>i&1, devices_present);
+        AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR("PCF: I2C shift i %d: %d. Powerstate: %d, devices_present: %d"), i,_result, Settings.power>>i&1, devices_present);
         if (_result > 0) {
           Pcf8574.pin[devices_present] = i + 8 * idx;
           bitWrite(rel_inverted, devices_present, Settings.flag3.pcf8574_ports_inverted);
@@ -118,7 +120,7 @@ void Pcf8574Init()
         }
       }
     }
-    AddLog_P2(LOG_LEVEL_INFO, PSTR("PCF: Total devices %d, PCF8574 output ports %d"), devices_present, Pcf8574.max_connected_ports);
+    AddLog_P2(LOG_LEVEL_INFO, PSTR("PCF: Total devices %d, PCF8574 output ports %d, type %d"), Pcf8574.max_devices, Pcf8574.max_connected_ports, Pcf8574.type);
   }
 }
 
@@ -223,7 +225,7 @@ bool Xdrv28(uint8_t function)
 {
   bool result = false;
 
-  if (i2c_flg && Pcf8574.type) {
+  if (i2c_flg && Pcf8574.type ) {
     switch (function) {
       case FUNC_SET_POWER:
         Pcf8574SwitchRelay();
