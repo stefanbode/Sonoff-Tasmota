@@ -196,8 +196,6 @@
 // Commands sonoff.ino
 
 //stb mode
-#define D_CMND_MQTTENABLE "MqttEnable"
-#define D_CMND_DEEPSLEEP "DeepSleep"
 #define D_SENSOR_DEEPSLEEP "DeepSleep Switch"
 // end
 

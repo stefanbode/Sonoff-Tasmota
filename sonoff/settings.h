@@ -411,7 +411,7 @@ struct RTCMEM {
   EnergyUsage   energy_usage;              // 2B0
   //STB mod
   uint8_t       free_2C8[22];              // 2C8
-  int16_t       deepsleep_slip;
+  uint16_t      deepsleep_slip;
   unsigned long nextwakeup;
   unsigned long uptime_old;
   uint32_t      ultradeepsleep;
