@@ -36,6 +36,7 @@
 #define D_CMND_SHUTTER_SETCLOSE "SetClose"
 #define D_CMND_SHUTTER_INVERT "Invert"
 #define D_CMND_SHUTTER_CLIBRATION "Calibration"
+#define D_CMND_SHUTTER_MOTORDELAY "MotorDelay"
 
 #define D_SHUTTER "SHUTTER"
 
@@ -49,12 +50,12 @@ enum ShutterModes { SHT_OFF_OPEN__OFF_CLOSE, SHT_OFF_ON__OPEN_CLOSE, SHT_PULSE_O
 const char kShutterCommands[] PROGMEM = D_PRFX_SHUTTER "|"
   D_CMND_SHUTTER_OPEN "|" D_CMND_SHUTTER_CLOSE "|" D_CMND_SHUTTER_STOP "|" D_CMND_SHUTTER_POSITION  "|"
   D_CMND_SHUTTER_OPENTIME "|" D_CMND_SHUTTER_CLOSETIME "|" D_CMND_SHUTTER_RELAY "|"
-  D_CMND_SHUTTER_SETHALFWAY "|" D_CMND_SHUTTER_SETCLOSE "|" D_CMND_SHUTTER_INVERT "|" D_CMND_SHUTTER_CLIBRATION;
+  D_CMND_SHUTTER_SETHALFWAY "|" D_CMND_SHUTTER_SETCLOSE "|" D_CMND_SHUTTER_INVERT "|" D_CMND_SHUTTER_CLIBRATION "|" D_CMND_SHUTTER_MOTORDELAY;
 
 void (* const ShutterCommand[])(void) PROGMEM = {
   &CmndShutterOpen, &CmndShutterClose, &CmndShutterStop, &CmndShutterPosition,
   &CmndShutterOpenTime, &CmndShutterCloseTime, &CmndShutterRelay,
-  &CmndShutterSetHalfway, &CmndShutterSetClose, &CmndShutterInvert, &CmndShutterCalibration };
+  &CmndShutterSetHalfway, &CmndShutterSetClose, &CmndShutterInvert, &CmndShutterCalibration , &CmndShutterMotorDelay};
 
 const char JSON_SHUTTER_POS[] PROGMEM = "\"" D_PRFX_SHUTTER "%d\":{\"Position\":%d,\"direction\":%d}";
 
@@ -77,6 +78,7 @@ struct SHUTTER {
   uint16_t operations[MAX_SHUTTERS];
   int8_t  direction[MAX_SHUTTERS];        // 1 == UP , 0 == stop; -1 == down
   uint8_t mode = 0;                       // operation mode definition. see enum type above SHT_OFF_OPEN__OFF_CLOSE, SHT_OFF_ON__OPEN_CLOSE, SHT_PULSE_OPEN__PULSE_CLOSE
+  uint8_t motordelay[MAX_SHUTTERS];                 // initial motorstarttime in 0.05sec.
 } Shutter;
 
 void ShutterRtc50mS(void)
@@ -211,15 +213,16 @@ void ShutterInit(void)
       Shutter.real_position[i] = ShutterPercentToRealPosition(Settings.shutter_position[i], i);
       //Shutter.real_position[i] =   Settings.shutter_position[i] <= 5 ?  Settings.shuttercoeff[2][i] * Settings.shutter_position[i] : Settings.shuttercoeff[1][i] * Settings.shutter_position[i] + Settings.shuttercoeff[0,i];
       Shutter.start_position[i] = Shutter.real_position[i];
+      Shutter.motordelay[i] = Settings.shutter_motordelay[i];
 
       char shutter_open_chr[10];
       dtostrfd((float)Shutter.open_time[i] / 10 , 1, shutter_open_chr);
       char shutter_close_chr[10];
       dtostrfd((float)Shutter.close_time[i] / 10, 1, shutter_close_chr);
-      AddLog_P2(LOG_LEVEL_INFO, PSTR("SHT: Shutter %d (Relay:%d): Init. Pos: %d [%d %%], Open Vel.: 100 Close Vel.: %d , Max Way: %d, Opentime %s [s], Closetime %s [s], CoedffCalc: c0: %d, c1 %d, c2: %d, c3: %d, c4: %d, binmask %d, is inverted %d, shuttermode %d"),
+      AddLog_P2(LOG_LEVEL_INFO, PSTR("SHT: Shutter %d (Relay:%d): Init. Pos: %d [%d %%], Open Vel.: 100 Close Vel.: %d , Max Way: %d, Opentime %s [s], Closetime %s [s], CoedffCalc: c0: %d, c1 %d, c2: %d, c3: %d, c4: %d, binmask %d, is inverted %d, shuttermode %d,motordelay %d"),
         i, Settings.shutter_startrelay[i], Shutter.real_position[i], Settings.shutter_position[i], Shutter.close_velocity[i], Shutter.open_max[i], shutter_open_chr, shutter_close_chr,
         Settings.shuttercoeff[0][i], Settings.shuttercoeff[1][i], Settings.shuttercoeff[2][i], Settings.shuttercoeff[3][i], Settings.shuttercoeff[4][i],
-        Shutter.mask, Settings.shutter_invert[i], Shutter.mode);
+        Shutter.mask, Settings.shutter_invert[i], Shutter.mode, Shutter.motordelay[i]);
 
     } else {
       // terminate loop at first INVALID shutter.
@@ -237,7 +240,7 @@ void ShutterUpdatePosition(void)
   for (uint32_t i = 0; i < shutters_present; i++) {
     if (Shutter.direction[i] != 0) {
       //char stemp1[20];
-      Shutter.real_position[i] = Shutter.start_position[i] + ( Shutter.time[i] * (Shutter.direction[i] > 0 ? 100 : -Shutter.close_velocity[i]));
+      Shutter.real_position[i] = Shutter.start_position[i]  + ( (Shutter.time[i] - Shutter.motordelay[i]) * (Shutter.direction[i] > 0 ? 100 : -Shutter.close_velocity[i]));
       // avoid real position leaving the boundaries.
       Shutter.real_position[i] = Shutter.real_position[i] < 0 ? 0 : (Shutter.real_position[i] > Shutter.open_max[i] ? Shutter.open_max[i] : Shutter.real_position[i]) ;
 
@@ -321,7 +324,7 @@ void ShutterStartInit(uint8_t index, uint8_t direction, int32_t target_pos)
   Shutter.target_position[index] = target_pos;
   Shutter.start_position[index] = Shutter.real_position[index];
   Shutter.time[index] = 0;
-  //AddLog_P2(LOG_LEVEL_INFO,  PSTR("SHT: Start shutter: %d from %d to %d in directin %d"), index, Shutter.start_position[index], Shutter.target_position[index], Shutter.direction[index]);
+  AddLog_P2(LOG_LEVEL_INFO,  PSTR("SHT: Start shutter: %d from %d to %d in directin %d"), index, Shutter.start_position[index], Shutter.target_position[index], Shutter.direction[index]);
 }
 
 void ShutterDelayForMotorStop(void)
@@ -529,6 +532,19 @@ void CmndShutterCloseTime(void)
     }
     char time_chr[10];
     dtostrfd((float)(Settings.shutter_closetime[XdrvMailbox.index -1]) / 10, 1, time_chr);
+    ResponseCmndIdxChar(time_chr);
+  }
+}
+
+void CmndShutterMotorDelay(void)
+{
+  if ((XdrvMailbox.index > 0) && (XdrvMailbox.index <= shutters_present)) {
+    if (XdrvMailbox.data_len > 0) {
+      Settings.shutter_motordelay[XdrvMailbox.index -1] = (uint16_t)(20 * CharToFloat(XdrvMailbox.data));
+      ShutterInit();
+    }
+    char time_chr[10];
+    dtostrfd((float)(Settings.shutter_motordelay[XdrvMailbox.index -1]) / 20, 1, time_chr);
     ResponseCmndIdxChar(time_chr);
   }
 }

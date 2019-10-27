@@ -1,5 +1,5 @@
 /*
-  xdrv_90_deepsleep.ino - Shutter/Blind support for Sonoff-Tasmota
+  xdrv_90_deepsleep.ino - DeepSleep support for ESP8266
 
   Copyright (C) 2019  Stefan Bode
 
@@ -19,13 +19,13 @@
 
 #ifdef USE_DEEPSLEEP
 /*********************************************************************************************\
- * SDeepSleep Support
+ * DeepSleep Support
 \*********************************************************************************************/
 
 #define XDRV_90            90
 
 
-#define MAX_DEEPSLEEP_CYCLE    60         // Maximum time for a deepsleep
+#define MAX_DEEPSLEEP_CYCLE    3600         // Maximum time for a deepsleep
 #define MIN_DEEPSLEEP_TIME      5
 
 
@@ -39,12 +39,6 @@ void (* const DeepsleepCommand[])(void) PROGMEM = {
   &CmndDeepsleepTime };
 
 const char JSON_DEEPSLEEP[] PROGMEM = "\"" D_PRFX_DEEPSLEEP "%d\":{\"Time\":%d}";
-
-struct DEEPSLEEP {
-  unsigned long last_save_uptime = 0;                       // bit mask with 11 at the position of relays that belong to at least ONE shutter
-
-} Deepsleep;
-
 
 void DeepSleepInit(void)
 {
@@ -89,9 +83,7 @@ void CheckForDeepsleep(void)
   // new function AFTER_TELEPERIOD can take some time therefore <2
   if (Settings.deepsleep > 10 && Settings.deepsleep < 4294967295 && !disable_deepsleep_switch && tele_period < 2 && prep_called == 1 ) {
     SettingsSaveAll();
-    Response_P(S_OFFLINE);
-    MqttPublishPrefixTopic_P(TELE, PSTR(D_LWT), true);  // Offline or remove previous retained topic
-    yield();
+
     // deepsleep_slip is ideally 10.000 == 100%
     // typically the device has up to 4% slip. Anything else is a wrong setting in the deepsleep_slip
     // therefore all values >110% or <90% will be resetted to 100% to avoid crazy sleep times.
@@ -113,7 +105,7 @@ void CheckForDeepsleep(void)
     if (timeslip) {
       RtcSettings.deepsleep_slip = (Settings.deepsleep+RtcSettings.nextwakeup-UtcTime()) *RtcSettings.deepsleep_slip / (Settings.deepsleep-(millis()/1000));
       //Avoid crazy numbers. Again maximum 10% deviation.
-      AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR("%% calculate drift %ld"),  RtcSettings.deepsleep_slip );
+      //AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR("%% calculate drift %ld"),  RtcSettings.deepsleep_slip );
       RtcSettings.deepsleep_slip = tmin(tmax(RtcSettings.deepsleep_slip, 9000),11000);
 
       AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR("%% new drift %ld"),  RtcSettings.deepsleep_slip );
@@ -125,16 +117,18 @@ void CheckForDeepsleep(void)
       // ensure nextwakeup is at least in the future
       RtcSettings.nextwakeup += ( ((UtcTime() + MIN_DEEPSLEEP_TIME - RtcSettings.nextwakeup) / Settings.deepsleep) + 1)*Settings.deepsleep;
     }
-    Response_P(PSTR("%d"), RtcSettings.nextwakeup);
-    MqttPublishPrefixTopic_P(TELE, PSTR(D_DOMOTICZ_UPDATE_TIMER), false);  // Offline or remove previous retained topic
-    yield();
-    MqttDisconnect();
+
     String dt = GetDT(RtcSettings.nextwakeup+LocalTime()- UtcTime());  // 2017-03-07T11:08:02
     AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR("Next wakeup %s"), (char*)dt.c_str());
     //limit sleeptime to MAX_DEEPSLEEP_CYCLE
     //uint32_t sleeptime = MAX_DEEPSLEEP_CYCLE < (RtcSettings.nextwakeup - UtcTime()) ? (uint32_t)MAX_DEEPSLEEP_CYCLE : RtcSettings.nextwakeup - UtcTime();
     uint32_t sleeptime = tmin((uint32_t)MAX_DEEPSLEEP_CYCLE , RtcSettings.nextwakeup - UtcTime());
-
+    Response_P(PSTR("{\"" D_PRFX_DEEPSLEEP "\":{\"" D_JSON_TIME "\":\"%s\",\"Epoch\":%d}}"), (char*)dt.c_str(), RtcSettings.nextwakeup);
+    MqttPublishPrefixTopic_P(RESULT_OR_STAT, PSTR(D_CMND_STATUS "1"), false);
+    Response_P(S_OFFLINE);
+    MqttPublishPrefixTopic_P(TELE, PSTR(D_LWT), true);  // Offline or remove previous retained topic
+    yield();
+    MqttDisconnect();
     RtcSettings.ultradeepsleep =  RtcSettings.nextwakeup - UtcTime();
     AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR("Sleeptime %d sec, deepsleep_slip %ld"), sleeptime, RtcSettings.deepsleep_slip);
     RtcSettingsSave();

@@ -384,8 +384,9 @@ struct SYSCFG {
   uint8_t       shutter_position[MAX_SHUTTERS];      // E80
   uint8_t       shutter_startrelay[MAX_SHUTTERS];    // E84
   uint8_t       pcf8574_config[MAX_PCF8574];         // E88
+  uint8_t       shutter_motordelay[MAX_SHUTTERS];      // E80
 // stb mode
-  uint8_t       free_e90[344];             // E90
+  uint8_t       free_e90[340];             // E90
   unsigned long uptime_deleted;             // FDF
   uint32_t      deepsleep;                 //FEC
   uint16_t      pulse_devider[MAX_COUNTERS];     //FF0
