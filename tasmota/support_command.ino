@@ -30,7 +30,9 @@ const char kTasmotaCommands[] PROGMEM = "|"  // No prefix
 #ifdef USE_I2C
   D_CMND_I2CSCAN "|" D_CMND_I2CDRIVER "|"
 #endif
-  D_CMND_SENSOR "|" D_CMND_DRIVER;
+//stb mod
+  D_CMND_SENSOR "|" D_CMND_DRIVER "|" D_CMND_TEMPOFFSET ;
+//end
 
 void (* const TasmotaCommand[])(void) PROGMEM = {
   &CmndBacklog, &CmndDelay, &CmndPower, &CmndStatus, &CmndState, &CmndSleep, &CmndUpgrade, &CmndUpgrade, &CmndOtaUrl,
@@ -45,7 +47,9 @@ void (* const TasmotaCommand[])(void) PROGMEM = {
 #ifdef USE_I2C
   &CmndI2cScan, CmndI2cDriver,
 #endif
-  &CmndSensor, &CmndDriver };
+//stb mod
+  &CmndSensor, &CmndDriver, &CmndTempOffset };
+//end
 
 const char kWifiConfig[] PROGMEM =
   D_WCFG_0_RESTART "||" D_WCFG_2_WIFIMANAGER "||" D_WCFG_4_RETRY "|" D_WCFG_5_WAIT "|" D_WCFG_6_SERIAL "|" D_WCFG_7_WIFIMANAGER_RESET_ONLY;
@@ -599,6 +603,16 @@ void CmndPulsetime(void)
     ResponseJsonEnd();
   }
 }
+
+//stb mod
+void CmndTempOffset(void)
+{
+  if ((XdrvMailbox.payload > -127) && (XdrvMailbox.payload < 127) && (XdrvMailbox.data_len > 0)) {
+    Settings.temp_comp = XdrvMailbox.payload;
+  }
+  ResponseCmndNumber(Settings.temp_comp);
+}
+//end
 
 void CmndBlinktime(void)
 {

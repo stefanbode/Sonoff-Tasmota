@@ -437,8 +437,11 @@ struct SYSCFG {
   uint8_t       free_e9e[2];               // E9E
 
   uint8_t       web_color2[2][3];          // EA0 - Needs to be on integer / 3 distance from web_color
-    uint8_t     pulse_devider[MAX_COUNTERS];
-  uint8_t       free_ea4[322];             // EA6
+  uint8_t       pulse_devider[MAX_COUNTERS];
+  //stb mod
+  int8_t        temp_comp;
+  //end
+  uint8_t       free_ea4[321];             // EA6
 
   uint32_t      i2c_drivers[3];            // FEC I2cDriver
   uint32_t      cfg_timestamp;             // FF8

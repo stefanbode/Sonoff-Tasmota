@@ -488,6 +488,9 @@
     #define D_JSON_MOTOR_MIS "setMIS"
   #endif
 
+//stb mod
+#define D_CMND_TEMPOFFSET "tempoffset"
+//end
 /********************************************************************************************/
 
 #define D_ASTERISK_PWD "****"
