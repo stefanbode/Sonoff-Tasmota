@@ -250,7 +250,7 @@ void ShutterUpdatePosition(void)
       // 0..1000 in step 100 = 10 steps with 0.05 sec = 0.5sec total ramp time from start to
       // full speed.
       if (pin[GPIO_PWM1]+i < 99 && Shutter.pwm_frequency != MAX_PWM_FREQUENCY) {
-        Shutter.pwm_frequency += 50;
+        Shutter.pwm_frequency += MAX_PWM_FREQUENCY/20;
         Shutter.pwm_frequency = (Shutter.pwm_frequency > MAX_PWM_FREQUENCY ? MAX_PWM_FREQUENCY : Shutter.pwm_frequency);
         analogWriteFreq(Shutter.pwm_frequency);
         analogWrite(pin[GPIO_PWM1]+i, 50);
@@ -280,21 +280,21 @@ void ShutterUpdatePosition(void)
             // Only allow PWM microstepping if PWM and COUNTER are defined.
             // see wiki to connect PWM and COUNTER
             if (pin[GPIO_PWM1 ]+i < 99 && pin[GPIO_CNTR1 ]+i < 99) {
-              int16_t missing_steps = (Shutter.target_position[i]-Shutter.start_position[i])*Shutter.direction[i]/2 - RtcSettings.pulse_counter[i];
+              int16_t missing_steps = (Shutter.target_position[i]-Shutter.start_position[i])*Shutter.direction[i]/(2000/MAX_PWM_FREQUENCY) - RtcSettings.pulse_counter[i];
               Shutter.pwm_frequency = 0;
               //slow down for acurate position
               analogWriteFreq(500);
               analogWrite(pin[GPIO_PWM1]+i, 50);
               //prepare for stop PWM
-              Shutter.motordelay[i] = -2 + Shutter.motordelay[i] + missing_steps/50;
-              AddLog_P2(LOG_LEVEL_DEBUG, PSTR("SHT: Missing steps %d, adjust motordelay %d"), missing_steps, Shutter.motordelay[i]);
+              Shutter.motordelay[i] = -2 + Shutter.motordelay[i] + missing_steps/(MAX_PWM_FREQUENCY/20);
+              AddLog_P2(LOG_LEVEL_DEBUG, PSTR("SHT: Missing steps %d, adjust motordelay %d, counter %d, temp realpos %d"), missing_steps, Shutter.motordelay[i],RtcSettings.pulse_counter[i] ,Shutter.real_position[i]);
               Settings.shutter_motordelay[i]=Shutter.motordelay[i];
               analogWriteFreq(0);
-              while (RtcSettings.pulse_counter[i] < (Shutter.target_position[i]-Shutter.start_position[i])*Shutter.direction[i]/2) {
+              while (RtcSettings.pulse_counter[i] < (Shutter.target_position[i]-Shutter.start_position[i])*Shutter.direction[i]/(2000/MAX_PWM_FREQUENCY)) {
                 delay(1);
               }
               analogWrite(pin[GPIO_PWM1]+i, 0);
-              Shutter.real_position[i] = RtcSettings.pulse_counter[i]*Shutter.direction[i]*2+Shutter.start_position[i];
+              Shutter.real_position[i] = RtcSettings.pulse_counter[i]*Shutter.direction[i]*(2000 / MAX_PWM_FREQUENCY)+Shutter.start_position[i];
             }
             if ((1 << (Settings.shutter_startrelay[i]-1)) & power) {
               ExecuteCommandPower(Settings.shutter_startrelay[i], 0, SRC_SHUTTER);
@@ -312,7 +312,7 @@ void ShutterUpdatePosition(void)
         Settings.shutter_position[i] = ShutterRealToPercentPosition(Shutter.real_position[i], i);
 
         dtostrfd((float)Shutter.time[i] / 20, 1, stemp2);
-        AddLog_P2(LOG_LEVEL_DEBUG, PSTR("SHT: Shutter %d: Real Pos. %d, Stoppos: %ld, relay: %d, direction %d, pulsetimer: %d, rtcshutter: %s [s]"), i, Shutter.real_position[i], Settings.shutter_position[i], cur_relay -1, Shutter.direction[i], Settings.pulse_timer[cur_relay -1], stemp2);
+        AddLog_P2(LOG_LEVEL_DEBUG, PSTR("SHT: Shutter %d: Real Pos. %d, Stoppos: %ld, relay: %d, direction %d, pulsetimer: %d, motordelay %d, rtcshutter: %s [s]"), i, Shutter.real_position[i], Settings.shutter_position[i], cur_relay -1, Shutter.direction[i], Settings.pulse_timer[cur_relay -1], Shutter.motordelay[i],stemp2);
         Shutter.start_position[i] = Shutter.real_position[i];
 
         // sending MQTT result to broker
@@ -372,10 +372,10 @@ void ShutterReportPosition(void)
     if (Shutter.direction[i] != 0) {
       char stemp1[20];
       char stemp2[10];
-      dtostrfd((float)Shutter.time[i] / 20, 1, stemp2);
+      dtostrfd((float)Shutter.time[i] / 20, 2, stemp2);
       shutter_moving = 1;
       //Settings.shutter_position[i] = Settings.shuttercoeff[2][i] * 5 > Shutter.real_position[i] ? Shutter.real_position[i] / Settings.shuttercoeff[2][i] : (Shutter.real_position[i]-Settings.shuttercoeff[0,i]) / Settings.shuttercoeff[1][i];
-      AddLog_P2(LOG_LEVEL_INFO, PSTR("SHT: Shutter %d: Real Pos: %d, Target %d, source: %s, start-pos: %d %%, direction: %d, rtcshutter: %s  [s]"), i,Shutter.real_position[i], Shutter.target_position[i], GetTextIndexed(stemp1, sizeof(stemp1), last_source, kCommandSource), Settings.shutter_position[i], Shutter.direction[i], stemp2 );
+      AddLog_P2(LOG_LEVEL_INFO, PSTR("SHT: Shutter %d: Real Pos: %d, Target %d, source: %s, start-pos: %d %%, direction: %d, motordelay %d, rtcshutter: %s  [s]"), i,Shutter.real_position[i], Shutter.target_position[i], GetTextIndexed(stemp1, sizeof(stemp1), last_source, kCommandSource), Settings.shutter_position[i], Shutter.direction[i], Shutter.motordelay[i], stemp2 );
     }
   }
   if (rules_flag.shutter_moving > shutter_moving) {
