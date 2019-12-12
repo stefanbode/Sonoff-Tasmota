@@ -185,7 +185,7 @@ void Ade7953GetData(void)
   }
 }
 
-void Ade7953EnergyEverySecond()
+void Ade7953EnergyEverySecond(void)
 {
 	if (Ade7953.init_step) {
     if (1 == Ade7953.init_step) {
@@ -199,15 +199,15 @@ void Ade7953EnergyEverySecond()
 
 void Ade7953DrvInit(void)
 {
-  if (i2c_flg && (pin[GPIO_ADE7953_IRQ] < 99)) {  // Irq on GPIO16 is not supported...
+  if (pin[GPIO_ADE7953_IRQ] < 99) {               // Irq on GPIO16 is not supported...
     delay(100);                                   // Need 100mS to init ADE7953
-    if (I2cDevice(ADE7953_ADDR)) {
+    if (I2cSetDevice(ADE7953_ADDR)) {
       if (HLW_PREF_PULSE == Settings.energy_power_calibration) {
         Settings.energy_power_calibration = ADE7953_PREF;
         Settings.energy_voltage_calibration = ADE7953_UREF;
         Settings.energy_current_calibration = ADE7953_IREF;
       }
-      AddLog_P2(LOG_LEVEL_DEBUG, S_LOG_I2C_FOUND_AT, "ADE7953", ADE7953_ADDR);
+      I2cSetActiveFound(ADE7953_ADDR, "ADE7953");
       Ade7953.init_step = 2;
 
       Energy.phase_count = 2;                     // Handle two channels as two phases

@@ -22,6 +22,7 @@
 #ifdef USE_DISPLAY_RA8876
 
 #define XDSP_10                10
+#define XI2C_39                39  // See I2CDEVICES.md
 
 #define COLORED                1
 #define UNCOLORED              0
@@ -97,7 +98,7 @@ void RA8876_InitDriver()
 #endif
     color_type = COLOR_COLOR;
 
-    if (i2c_flg && I2cDevice(FT5316_address)) {
+    if (I2cEnabled(XI2C_39) && I2cSetDevice(FT5316_address)) {
       FT6236begin(FT5316_address);
       FT5316_found=1;
     } else {
@@ -110,7 +111,7 @@ void RA8876_InitDriver()
 #ifdef USE_TOUCH_BUTTONS
 void RA8876_MQTT(uint8_t count,const char *cp) {
   ResponseTime_P(PSTR(",\"RA8876\":{\"%s%d\":\"%d\"}}"), cp,count+1,(buttons[count]->vpower&0x80)>>7);
-  MqttPublishPrefixTopic_P(TELE, PSTR(D_RSLT_SENSOR), Settings.flag.mqtt_sensor_retain);  // CMND_SENSORRETAIN
+  MqttPublishTeleSensor();
 }
 
 void RA8876_RDW_BUTT(uint32_t count,uint32_t pwr) {

@@ -76,7 +76,7 @@ enum Zigbee_StateMachine_Instruction_Set {
   ZGB_INSTR_8_BYTES = 0x80,
   ZGB_INSTR_CALL = 0x80,                // call a function
   ZGB_INSTR_LOG,                        // log a message, if more detailed logging required, call a function
-  ZGB_INSTR_MQTT_STATUS,                // send MQTT status string with code
+  ZGB_INSTR_MQTT_STATE,                 // send MQTT status string with code
   ZGB_INSTR_SEND,                       // send a ZNP message
   ZGB_INSTR_WAIT_UNTIL,                 // wait until the specified message is received, ignore all others
   ZGB_INSTR_WAIT_RECV,                  // wait for a message according to the filter
@@ -98,7 +98,7 @@ enum Zigbee_StateMachine_Instruction_Set {
 
 #define ZI_CALL(f, x)       { .i = { ZGB_INSTR_CALL, (x), 0x0000} }, { .p = (const void*)(f) },
 #define ZI_LOG(x, m)        { .i = { ZGB_INSTR_LOG,    (x), 0x0000 } }, { .p = ((const void*)(m)) },
-#define ZI_MQTT_STATUS(x, m) { .i = { ZGB_INSTR_MQTT_STATUS,    (x), 0x0000 } }, { .p = ((const void*)(m)) },
+#define ZI_MQTT_STATE(x, m) { .i = { ZGB_INSTR_MQTT_STATE,    (x), 0x0000 } }, { .p = ((const void*)(m)) },
 #define ZI_ON_RECV_UNEXPECTED(f) { .i = { ZGB_ON_RECV_UNEXPECTED, 0x00, 0x0000} }, { .p = (const void*)(f) },
 #define ZI_SEND(m)          { .i = { ZGB_INSTR_SEND, sizeof(m), 0x0000} }, { .p = (const void*)(m) },
 #define ZI_WAIT_RECV(x, m)  { .i = { ZGB_INSTR_WAIT_RECV, sizeof(m), (x)} }, { .p = (const void*)(m) },
@@ -322,12 +322,12 @@ static const Zigbee_Instruction zb_prog[] PROGMEM = {
     ZI_WAIT(10500)                             // wait for 10 seconds for Tasmota to stabilize
     ZI_ON_ERROR_GOTO(50)
 
-    //ZI_MQTT_STATUS(ZIGBEE_STATUS_BOOT, "Booting")
-    //ZI_LOG(LOG_LEVEL_INFO, "ZIG: rebooting device")
+    //ZI_MQTT_STATE(ZIGBEE_STATUS_BOOT, "Booting")
+    //ZI_LOG(LOG_LEVEL_INFO, D_LOG_ZIGBEE "rebooting device")
     ZI_SEND(ZBS_RESET)                        // reboot cc2530 just in case we rebooted ESP8266 but not cc2530
     ZI_WAIT_RECV_FUNC(5000, ZBR_RESET, &Z_Reboot)             // timeout 5s
     ZI_WAIT(100)
-    ZI_LOG(LOG_LEVEL_INFO, "ZIG: checking device configuration")
+    ZI_LOG(LOG_LEVEL_DEBUG, D_LOG_ZIGBEE "checking device configuration")
     ZI_SEND(ZBS_ZNPHC)                        // check value of ZNP Has Configured
     ZI_WAIT_RECV(2000, ZBR_ZNPHC)
     ZI_SEND(ZBS_VERSION)                      // check ZNP software version
@@ -342,15 +342,15 @@ static const Zigbee_Instruction zb_prog[] PROGMEM = {
     ZI_WAIT_RECV(1000, ZBR_PFGK)
     ZI_SEND(ZBS_PFGKEN)                       // check PFGKEN
     ZI_WAIT_RECV(1000, ZBR_PFGKEN)
-    //ZI_LOG(LOG_LEVEL_INFO, "ZIG: zigbee configuration ok")
+    //ZI_LOG(LOG_LEVEL_INFO, D_LOG_ZIGBEE "zigbee configuration ok")
     // all is good, we can start
 
   ZI_LABEL(ZIGBEE_LABEL_START)                // START ZNP App
-    ZI_MQTT_STATUS(ZIGBEE_STATUS_STARTING, "Configured, starting coordinator")
+    ZI_MQTT_STATE(ZIGBEE_STATUS_STARTING, "Configured, starting coordinator")
     //ZI_CALL(&Z_State_Ready, 1)                // Now accept incoming messages
     ZI_ON_ERROR_GOTO(ZIGBEE_LABEL_ABORT)
     // Z_ZDO:startupFromApp
-    //ZI_LOG(LOG_LEVEL_INFO, "ZIG: starting zigbee coordinator")
+    //ZI_LOG(LOG_LEVEL_INFO, D_LOG_ZIGBEE "starting zigbee coordinator")
 ZI_SEND(ZBS_STARTUPFROMAPP)                       // start coordinator
     ZI_WAIT_RECV(2000, ZBR_STARTUPFROMAPP)        // wait for sync ack of command
     ZI_WAIT_UNTIL(5000, AREQ_STARTUPFROMAPP)      // wait for async message that coordinator started
@@ -382,15 +382,15 @@ ZI_SEND(ZBS_STARTUPFROMAPP)                       // start coordinator
     //ZI_WAIT_UNTIL(500, ZBR_PERMITJOIN_AREQ_OPEN_FF)
 
   ZI_LABEL(ZIGBEE_LABEL_READY)
-    ZI_MQTT_STATUS(ZIGBEE_STATUS_OK, "Started")
-    ZI_LOG(LOG_LEVEL_INFO, "ZIG: zigbee device ready, listening...")
+    ZI_MQTT_STATE(ZIGBEE_STATUS_OK, "Started")
+    ZI_LOG(LOG_LEVEL_INFO, D_LOG_ZIGBEE "Zigbee started")
     ZI_CALL(&Z_State_Ready, 1)                    // Now accept incoming messages
   ZI_LABEL(ZIGBEE_LABEL_MAIN_LOOP)
     ZI_WAIT_FOREVER()
     ZI_GOTO(ZIGBEE_LABEL_READY)
 
   ZI_LABEL(ZIGBEE_LABEL_PERMIT_JOIN_CLOSE)
-    //ZI_MQTT_STATUS(ZIGBEE_STATUS_PERMITJOIN_CLOSE, "Disable Pairing mode")
+    //ZI_MQTT_STATE(ZIGBEE_STATUS_PERMITJOIN_CLOSE, "Disable Pairing mode")
     ZI_SEND(ZBS_PERMITJOINREQ_CLOSE)              // Closing the Permit Join
     ZI_WAIT_RECV(1000, ZBR_PERMITJOINREQ)
     //ZI_WAIT_UNTIL(1000, ZBR_PERMITJOIN_AREQ_RSP)  // not sure it's useful
@@ -398,7 +398,7 @@ ZI_SEND(ZBS_STARTUPFROMAPP)                       // start coordinator
     ZI_GOTO(ZIGBEE_LABEL_MAIN_LOOP)
 
   ZI_LABEL(ZIGBEE_LABEL_PERMIT_JOIN_OPEN_60)
-    //ZI_MQTT_STATUS(ZIGBEE_STATUS_PERMITJOIN_OPEN_60, "Enable Pairing mode for 60 seconds")
+    //ZI_MQTT_STATE(ZIGBEE_STATUS_PERMITJOIN_OPEN_60, "Enable Pairing mode for 60 seconds")
     ZI_SEND(ZBS_PERMITJOINREQ_OPEN_60)
     ZI_WAIT_RECV(1000, ZBR_PERMITJOINREQ)
     //ZI_WAIT_UNTIL(1000, ZBR_PERMITJOIN_AREQ_RSP)  // not sure it's useful
@@ -406,7 +406,7 @@ ZI_SEND(ZBS_STARTUPFROMAPP)                       // start coordinator
     ZI_GOTO(ZIGBEE_LABEL_MAIN_LOOP)
 
   ZI_LABEL(ZIGBEE_LABEL_PERMIT_JOIN_OPEN_XX)
-    //ZI_MQTT_STATUS(ZIGBEE_STATUS_PERMITJOIN_OPEN_XX, "Enable Pairing mode until next boot")
+    //ZI_MQTT_STATE(ZIGBEE_STATUS_PERMITJOIN_OPEN_XX, "Enable Pairing mode until next boot")
     ZI_SEND(ZBS_PERMITJOINREQ_OPEN_XX)
     ZI_WAIT_RECV(1000, ZBR_PERMITJOINREQ)
     //ZI_WAIT_UNTIL(1000, ZBR_PERMITJOIN_AREQ_RSP)  // not sure it's useful
@@ -414,8 +414,8 @@ ZI_SEND(ZBS_STARTUPFROMAPP)                       // start coordinator
     ZI_GOTO(ZIGBEE_LABEL_MAIN_LOOP)
 
   ZI_LABEL(50)                                    // reformat device
-    ZI_MQTT_STATUS(ZIGBEE_STATUS_RESET_CONF, "Reseting configuration")
-    //ZI_LOG(LOG_LEVEL_INFO, "ZIG: zigbee bad configuration of device, doing a factory reset")
+    ZI_MQTT_STATE(ZIGBEE_STATUS_RESET_CONF, "Reseting configuration")
+    //ZI_LOG(LOG_LEVEL_INFO, D_LOG_ZIGBEE "zigbee bad configuration of device, doing a factory reset")
     ZI_ON_ERROR_GOTO(ZIGBEE_LABEL_ABORT)
     ZI_SEND(ZBS_FACTRES)                          // factory reset
     ZI_WAIT_RECV(1000, ZBR_W_OK)
@@ -443,16 +443,16 @@ ZI_SEND(ZBS_STARTUPFROMAPP)                       // start coordinator
     ZI_SEND(ZBS_WNV_ZNPHC)                        // Write NV ZNP Has Configured
     ZI_WAIT_RECV(1000, ZBR_WNV_OK)
 
-    //ZI_LOG(LOG_LEVEL_INFO, "ZIG: zigbee device reconfigured")
+    //ZI_LOG(LOG_LEVEL_INFO, D_LOG_ZIGBEE "zigbee device reconfigured")
     ZI_GOTO(ZIGBEE_LABEL_START)
 
   ZI_LABEL(ZIGBEE_LABEL_UNSUPPORTED_VERSION)
-    ZI_MQTT_STATUS(ZIGBEE_STATUS_UNSUPPORTED_VERSION, "Only ZNP 1.2 is currently supported")
+    ZI_MQTT_STATE(ZIGBEE_STATUS_UNSUPPORTED_VERSION, "Only ZNP 1.2 is currently supported")
     ZI_GOTO(ZIGBEE_LABEL_ABORT)
 
   ZI_LABEL(ZIGBEE_LABEL_ABORT)                    // Label 99: abort
-    ZI_MQTT_STATUS(ZIGBEE_STATUS_ABORT, "Abort")
-    ZI_LOG(LOG_LEVEL_ERROR, "ZIG: Abort")
+    ZI_MQTT_STATE(ZIGBEE_STATUS_ABORT, "Abort")
+    ZI_LOG(LOG_LEVEL_ERROR, D_LOG_ZIGBEE "Abort")
     ZI_STOP(ZIGBEE_LABEL_ABORT)
 };
 
@@ -480,7 +480,7 @@ void ZigbeeGotoLabel(uint8_t label) {
     //AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR("ZGB GOTO: pc %d instr %d"), i, cur_instr);
 
     if (ZGB_INSTR_LABEL == cur_instr) {
-      //AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR("ZIG: found label %d at pc %d"), cur_d8, i);
+      //AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR(D_LOG_ZIGBEE "found label %d at pc %d"), cur_d8, i);
       if (label == cur_d8) {
         // label found, goto to this pc
         zigbee.pc = i;
@@ -494,12 +494,12 @@ void ZigbeeGotoLabel(uint8_t label) {
   }
 
   // no label found, abort
-  AddLog_P2(LOG_LEVEL_ERROR, PSTR("ZIG: Goto label not found, label=%d pc=%d"), label, zigbee.pc);
+  AddLog_P2(LOG_LEVEL_ERROR, PSTR(D_LOG_ZIGBEE "Goto label not found, label=%d pc=%d"), label, zigbee.pc);
   if (ZIGBEE_LABEL_ABORT != label) {
     // if not already looking for ZIGBEE_LABEL_ABORT, goto ZIGBEE_LABEL_ABORT
     ZigbeeGotoLabel(ZIGBEE_LABEL_ABORT);
   } else {
-    AddLog_P2(LOG_LEVEL_ERROR, PSTR("ZIG: Label Abort (%d) not present, aborting Zigbee"), ZIGBEE_LABEL_ABORT);
+    AddLog_P2(LOG_LEVEL_ERROR, PSTR(D_LOG_ZIGBEE "Label Abort (%d) not present, aborting Zigbee"), ZIGBEE_LABEL_ABORT);
     zigbee.state_machine = false;
     zigbee.active = false;
   }
@@ -516,9 +516,9 @@ void ZigbeeStateMachine_Run(void) {
   if (zigbee.state_waiting) {     // state machine is waiting for external event or timeout
     // checking if timeout expired
     if ((zigbee.next_timeout) && (now > zigbee.next_timeout)) {    // if next_timeout == 0 then wait forever
-      //AddLog_P2(LOG_LEVEL_INFO, PSTR("ZIG: timeout occured pc=%d"), zigbee.pc);
+      //AddLog_P2(LOG_LEVEL_INFO, PSTR(D_LOG_ZIGBEE "timeout occured pc=%d"), zigbee.pc);
       if (!zigbee.state_no_timeout) {
-        AddLog_P2(LOG_LEVEL_INFO, PSTR("ZIG: timeout, goto label %d"), zigbee.on_timeout_goto);
+        AddLog_P2(LOG_LEVEL_INFO, PSTR(D_LOG_ZIGBEE "timeout, goto label %d"), zigbee.on_timeout_goto);
         ZigbeeGotoLabel(zigbee.on_timeout_goto);
       } else {
         zigbee.state_waiting = false;     // simply stop waiting
@@ -534,7 +534,7 @@ void ZigbeeStateMachine_Run(void) {
     zigbee.state_no_timeout = false;   // reset the no_timeout for next instruction
 
     if (zigbee.pc > (sizeof(zb_prog)/sizeof(zb_prog[0]))) {
-      AddLog_P2(LOG_LEVEL_ERROR, PSTR("ZIG: Invalid pc: %d, aborting"), zigbee.pc);
+      AddLog_P2(LOG_LEVEL_ERROR, PSTR(D_LOG_ZIGBEE "Invalid pc: %d, aborting"), zigbee.pc);
       zigbee.pc = -1;
     }
     if (zigbee.pc < 0) {
@@ -543,7 +543,7 @@ void ZigbeeStateMachine_Run(void) {
     }
 
     // load current instruction details
-    AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR("ZIG: Executing instruction pc=%d"), zigbee.pc);
+    AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR(D_LOG_ZIGBEE "Executing instruction pc=%d"), zigbee.pc);
     const Zigbee_Instruction *cur_instr_line = &zb_prog[zigbee.pc];
     cur_instr = pgm_read_byte(&cur_instr_line->i.i);
     cur_d8    = pgm_read_byte(&cur_instr_line->i.d8);
@@ -585,7 +585,7 @@ void ZigbeeStateMachine_Run(void) {
       case ZGB_INSTR_STOP:
         zigbee.state_machine = false;
         if (cur_d8) {
-          AddLog_P2(LOG_LEVEL_ERROR, PSTR("ZIG: Stopping (%d)"), cur_d8);
+          AddLog_P2(LOG_LEVEL_ERROR, PSTR(D_LOG_ZIGBEE "Stopping (%d)"), cur_d8);
         }
         break;
       case ZGB_INSTR_CALL:
@@ -608,10 +608,10 @@ void ZigbeeStateMachine_Run(void) {
       case ZGB_INSTR_LOG:
         AddLog_P(cur_d8, (char*) cur_ptr1);
         break;
-      case ZGB_INSTR_MQTT_STATUS:
-        Response_P(PSTR("{\"" D_JSON_ZIGBEE_STATUS "\":{\"Status\":%d,\"Message\":\"%s\"}}"),
+      case ZGB_INSTR_MQTT_STATE:
+        Response_P(PSTR("{\"" D_JSON_ZIGBEE_STATE "\":{\"Status\":%d,\"Message\":\"%s\"}}"),
                           cur_d8, (char*) cur_ptr1);
-      	MqttPublishPrefixTopic_P(RESULT_OR_TELE, PSTR(D_JSON_ZIGBEE_STATUS));
+      	MqttPublishPrefixTopic_P(RESULT_OR_TELE, PSTR(D_JSON_ZIGBEE_STATE));
       	XdrvRulesProcess();
         break;
       case ZGB_INSTR_SEND:

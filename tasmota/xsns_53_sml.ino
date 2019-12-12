@@ -51,7 +51,7 @@
 //#define DWS74_BUG
 
 // max 23 chars
-#if DMY_LANGUAGE==de-DE
+#if MY_LANGUAGE==de-DE
 // german web text
 #define D_TPWRIN "Verbrauch"
 #define D_TPWROUT "Einspeisung"
@@ -499,7 +499,10 @@ const uint8_t meter[]=
 #define USE_SML_MEDIAN_FILTER
 
 // max number of vars , may be adjusted
+#ifndef MAX_VARS
 #define MAX_VARS 20
+#endif
+
 // max number of meters , may be adjusted
 #define MAX_METERS 5
 double meter_vars[MAX_VARS];
@@ -1207,7 +1210,7 @@ void sml_empty_receiver(uint32_t meters) {
 
 void sml_shift_in(uint32_t meters,uint32_t shard) {
   uint32_t count;
-  if (meter_desc_p[meters].type!='e' && meter_desc_p[meters].type!='m' && meter_desc_p[meters].type!='p') {
+  if (meter_desc_p[meters].type!='e' && meter_desc_p[meters].type!='m' && meter_desc_p[meters].type!='M' && meter_desc_p[meters].type!='p') {
     // shift in
     for (count=0; count<SML_BSIZ-1; count++) {
       smltbuf[meters][count]=smltbuf[meters][count+1];
@@ -1221,7 +1224,7 @@ void sml_shift_in(uint32_t meters,uint32_t shard) {
     smltbuf[meters][SML_BSIZ-1]=iob;
   } else if (meter_desc_p[meters].type=='r') {
     smltbuf[meters][SML_BSIZ-1]=iob;
-  } else if (meter_desc_p[meters].type=='m') {
+  } else if (meter_desc_p[meters].type=='m' || meter_desc_p[meters].type=='M') {
     smltbuf[meters][meter_spos[meters]] = iob;
     meter_spos[meters]++;
     if (meter_spos[meters]>=9) {
@@ -1263,7 +1266,7 @@ void sml_shift_in(uint32_t meters,uint32_t shard) {
 		}
   }
   sb_counter++;
-  if (meter_desc_p[meters].type!='e' && meter_desc_p[meters].type!='m' && meter_desc_p[meters].type!='p') SML_Decode(meters);
+  if (meter_desc_p[meters].type!='e' && meter_desc_p[meters].type!='m' && meter_desc_p[meters].type!='M' && meter_desc_p[meters].type!='p') SML_Decode(meters);
 }
 
 
@@ -1427,14 +1430,25 @@ void SML_Decode(uint8_t index) {
               //ignore
               mp+=2;
               cp++;
-            } else if (!strncmp(mp,"uuuuuuuu",8)) {
+            } else if (!strncmp(mp,"UUuuUUuu",8)) {
               uint32_t val= (cp[0]<<24)|(cp[1]<<16)|(cp[2]<<8)|(cp[3]<<0);
               ebus_dval=val;
               mbus_dval=val;
               mp+=8;
               cp+=4;
-            }
-            else if (*mp=='u' && *(mp+1)=='u' && *(mp+2)=='u' && *(mp+3)=='u'){
+            } else if (*mp=='U' && *(mp+1)=='U' && *(mp+2)=='u' && *(mp+3)=='u'){
+              uint16_t val = cp[1]|(cp[0]<<8);
+              mbus_dval=val;
+              ebus_dval=val;
+              mp+=4;
+              cp+=2;
+            } else if (!strncmp(mp,"SSssSSss",8)) {
+              int32_t val= (cp[0]<<24)|(cp[1]<<16)|(cp[2]<<8)|(cp[3]<<0);
+              ebus_dval=val;
+              mbus_dval=val;
+              mp+=8;
+              cp+=4;
+            } else if (*mp=='u' && *(mp+1)=='u' && *(mp+2)=='U' && *(mp+3)=='U'){
               uint16_t val = cp[0]|(cp[1]<<8);
               mbus_dval=val;
               ebus_dval=val;
@@ -1442,17 +1456,25 @@ void SML_Decode(uint8_t index) {
               cp+=2;
             } else if (*mp=='u' && *(mp+1)=='u') {
               uint8_t val = *cp++;
+              mbus_dval=val;
               ebus_dval=val;
               mp+=2;
-            }
-            else if (*mp=='s' && *(mp+1)=='s' && *(mp+2)=='s' && *(mp+3)=='s') {
+            } else if (*mp=='s' && *(mp+1)=='s' && *(mp+2)=='S' && *(mp+3)=='S') {
               int16_t val = *cp|(*(cp+1)<<8);
+              mbus_dval=val;
+              ebus_dval=val;
+              mp+=4;
+              cp+=2;
+            } else if (*mp=='S' && *(mp+1)=='S' && *(mp+2)=='s' && *(mp+3)=='s') {
+              int16_t val = cp[1]|(cp[0]<<8);
+              mbus_dval=val;
               ebus_dval=val;
               mp+=4;
               cp+=2;
             }
             else if (*mp=='s' && *(mp+1)=='s') {
               int8_t val = *cp++;
+              mbus_dval=val;
               ebus_dval=val;
               mp+=2;
             }
@@ -1523,7 +1545,7 @@ void SML_Decode(uint8_t index) {
           }
         } else {
           double dval;
-          if (meter_desc_p[mindex].type!='e' && meter_desc_p[mindex].type!='r' && meter_desc_p[mindex].type!='m' && meter_desc_p[mindex].type!='p') {
+          if (meter_desc_p[mindex].type!='e' && meter_desc_p[mindex].type!='r' && meter_desc_p[mindex].type!='m' && meter_desc_p[mindex].type!='M' && meter_desc_p[mindex].type!='p') {
             // get numeric values
             if (meter_desc_p[mindex].type=='o' || meter_desc_p[mindex].type=='c') {
               dval=CharToDouble((char*)cp);
@@ -1621,7 +1643,7 @@ void SML_Immediate_MQTT(const char *mp,uint8_t index,uint8_t mindex) {
           // immediate mqtt
           dtostrfd(meter_vars[index],dp&0xf,tpowstr);
           ResponseTime_P(PSTR(",\"%s\":{\"%s\":%s}}"),meter_desc_p[mindex].prefix,jname,tpowstr);
-          MqttPublishPrefixTopic_P(TELE, PSTR(D_RSLT_SENSOR), Settings.flag.mqtt_sensor_retain);  // CMND_SENSORRETAIN
+          MqttPublishTeleSensor();
         }
       }
     }
@@ -2061,7 +2083,7 @@ init10:
     } else {
       // serial input, init
 #ifdef SPECIAL_SS
-        if (meter_desc_p[meters].type=='m' || meter_desc_p[meters].type=='p') {
+        if (meter_desc_p[meters].type=='m' || meter_desc_p[meters].type=='M' || meter_desc_p[meters].type=='p') {
           meter_ss[meters] = new TasmotaSerial(meter_desc_p[meters].srcpin,meter_desc_p[meters].trxpin,1);
         } else {
           meter_ss[meters] = new TasmotaSerial(meter_desc_p[meters].srcpin,meter_desc_p[meters].trxpin,1,1);
@@ -2072,7 +2094,12 @@ init10:
         if (meter_ss[meters]->begin(meter_desc_p[meters].params)) {
           meter_ss[meters]->flush();
         }
-        if (meter_ss[meters]->hardwareSerial()) { ClaimSerial(); }
+        if (meter_ss[meters]->hardwareSerial()) {
+          if (meter_desc_p[meters].type=='M') {
+            Serial.begin(meter_desc_p[meters].params, SERIAL_8E1);
+          }
+          ClaimSerial();
+        }
 
     }
   }
@@ -2234,7 +2261,7 @@ void SML_Send_Seq(uint32_t meter,char *seq) {
     slen++;
     if (slen>=sizeof(sbuff)) break;
   }
-  if (script_meter_desc[meter].type=='m') {
+  if (script_meter_desc[meter].type=='m' || script_meter_desc[meter].type=='M') {
     *ucp++=0;
     *ucp++=2;
     // append crc

@@ -12,6 +12,9 @@ tasmota/user_config_override.h
 build
 firmware.map
 firmware.asm
+tasmota*.bin
+tasmota*.map
+platformio_override.ini
 
 ## Visual Studio Code specific ######
 .vscode

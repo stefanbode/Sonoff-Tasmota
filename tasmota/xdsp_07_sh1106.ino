@@ -51,17 +51,18 @@ Adafruit_SH1106 *oled1106;
 void SH1106InitDriver()
 {
   if (!Settings.display_model) {
-    if (I2cDevice(OLED_ADDRESS1)) {
+    if (I2cSetDevice(OLED_ADDRESS1)) {
       Settings.display_address[0] = OLED_ADDRESS1;
       Settings.display_model = XDSP_07;
     }
-    else if (I2cDevice(OLED_ADDRESS2)) {
+    else if (I2cSetDevice(OLED_ADDRESS2)) {
       Settings.display_address[0] = OLED_ADDRESS2;
       Settings.display_model = XDSP_07;
     }
   }
 
   if (XDSP_07 == Settings.display_model) {
+    I2cSetActiveFound(Settings.display_address[0], "SH1106");
 
     if (Settings.display_width != SH1106_LCDWIDTH) {
       Settings.display_width = SH1106_LCDWIDTH;

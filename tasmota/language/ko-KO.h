@@ -58,8 +58,8 @@
 #define D_AUTO "자동"
 #define D_BLINK "깜박임"
 #define D_BLINKOFF "깜박임 끄기"
-#define D_BOOT_COUNT "가동횟수"
-#define D_BRIGHTLIGHT "밝기"
+#define D_BOOT_COUNT "부팅 횟수"
+#define D_BRIGHTLIGHT "밝게"
 #define D_BSSID "BSSId"
 #define D_BUTTON "버튼"
 #define D_BY "by"                    // Written by me
@@ -67,24 +67,25 @@
 #define D_CELSIUS "섭씨"
 #define D_CHANNEL "채널"
 #define D_CO2 "이산화탄소"
-#define D_CODE "코드"                // Button code
+#define D_CODE "code"                // Button code
 #define D_COLDLIGHT "차갑게"
-#define D_COMMAND "명령"
+#define D_COMMAND "커맨드"
 #define D_CONNECTED "연결됨"
 #define D_COUNT "횟수"
+#define D_CORS_DOMAIN "CORS Domain"
 #define D_COUNTER "Counter"
 #define D_CURRENT "전류"          // As in Voltage and Current
-#define D_DATA "데이터"
+#define D_DATA "Data"
 #define D_DARKLIGHT "어둡게"
 #define D_DEBUG "디버그"
-#define D_DISABLED "사용 불가"
+#define D_DISABLED "사용안함"
 #define D_DISTANCE "거리"
 #define D_DNS_SERVER "DNS 서버"
 #define D_DONE "완료"
 #define D_DST_TIME "DST"
 #define D_ECO2 "eCO2"
 #define D_EMULATION "에뮬레이션"
-#define D_ENABLED "사용 가능"
+#define D_ENABLED "사용"
 #define D_ERASE "삭제"
 #define D_ERROR "에러"
 #define D_FAHRENHEIT "화씨"
@@ -95,7 +96,7 @@
 #define D_FILE "파일"
 #define D_FLOW_RATE "Flow rate"
 #define D_FREE_MEMORY "남은 메모리"
-#define D_FREQUENCY "빈도"
+#define D_FREQUENCY "Frequency"
 #define D_GAS "가스"
 #define D_GATEWAY "게이트웨이"
 #define D_GROUP "그룹"
@@ -107,7 +108,7 @@
 #define D_INDEX "인덱스"
 #define D_INFO "정보"
 #define D_INFRARED "적외선"
-#define D_INITIALIZED "초기화 완료"
+#define D_INITIALIZED "초기화됨"
 #define D_IP_ADDRESS "IP 주소"
 #define D_LIGHT "밝게"
 #define D_LWT "LWT"
@@ -136,8 +137,8 @@
 #define D_RAIN "비"
 #define D_RECEIVED "받음"
 #define D_RESTART "재시작"
-#define D_RESTARTING "재시작 중"
-#define D_RESTART_REASON "재시작 이유"
+#define D_RESTARTING "재시작 중.."
+#define D_RESTART_REASON "재시작 사유"
 #define D_RESTORE "복구"
 #define D_RETAINED "보류"
 #define D_RULE "규칙"
@@ -155,9 +156,9 @@
 #define D_SUNSET "일몰"
 #define D_TEMPERATURE "온도"
 #define D_TO "to"
-#define D_TOGGLE "전환"
+#define D_TOGGLE "켜기/끄기"
 #define D_TOPIC "Topic"
-#define D_TOTAL_USAGE "Total Usage"
+#define D_TOTAL_USAGE "전체 사용량"
 #define D_TRANSMIT "전송"
 #define D_TRUE "참"
 #define D_TVOC "TVOC"
@@ -211,7 +212,7 @@
 #define D_CHECKING_CONNECTION "연결 체크 중..."
 #define D_QUERY_DONE "쿼리 완료. MQTT 서비스 발견"
 #define D_MQTT_SERVICE_FOUND "MQTT 서비스 발견"
-#define D_FOUND_AT "다음에서 발견"
+#define D_FOUND_AT "다음을 발견"
 #define D_SYSLOG_HOST_NOT_FOUND "Syslog 호스트가 발견되지 않았습니다"
 
 // settings.ino
@@ -236,7 +237,7 @@
 #define D_SECONDS "초"
 #define D_DEVICE_WILL_RESTART "이 장치는 몇 초 후 재시작됩니다"
 #define D_BUTTON_TOGGLE "켜기/끄기"
-#define D_CONFIGURATION "설정"
+#define D_CONFIGURATION "설정 메뉴"
 #define D_INFORMATION "정보"
 #define D_FIRMWARE_UPGRADE "펌웨어 업그레이드"
 #define D_CONSOLE "콘솔"
@@ -250,20 +251,20 @@
 #define D_CONFIGURE_OTHER "기타 설정"
 #define D_CONFIRM_RESET_CONFIGURATION "설정 초기화 확인"
 #define D_RESET_CONFIGURATION "설정 초기화"
-#define D_BACKUP_CONFIGURATION "백업 설정"
-#define D_RESTORE_CONFIGURATION "복원 설정"
+#define D_BACKUP_CONFIGURATION "설정 백업"
+#define D_RESTORE_CONFIGURATION "설정 복구"
 #define D_MAIN_MENU "메인 메뉴"
 
-#define D_MODULE_PARAMETERS "모듈 상세"
+#define D_MODULE_PARAMETERS "모듈 설정"
 #define D_MODULE_TYPE "모듈 타입"
-#define D_PULLUP_ENABLE "No Button/Switch pull-up"
+#define D_PULLUP_ENABLE "버튼 없음/스위치 당김"
 #define D_ADC "ADC"
 #define D_GPIO "GPIO"
 #define D_SERIAL_IN "Serial In"
 #define D_SERIAL_OUT "Serial Out"
 
-#define D_WIFI_PARAMETERS "Wifi 상세"
-#define D_SCAN_FOR_WIFI_NETWORKS "Wifi 네트워크를 검색 중"
+#define D_WIFI_PARAMETERS "Wifi 설정"
+#define D_SCAN_FOR_WIFI_NETWORKS "Wifi 네트워크를 검색.."
 #define D_SCAN_DONE "검색 완료"
 #define D_NO_NETWORKS_FOUND "발견된 네트워크가 없습니다"
 #define D_REFRESH_TO_SCAN_AGAIN "검색 재시도"
@@ -278,33 +279,33 @@
 #define D_AP2_SSID "AP2 SSId"
 #define D_AP2_PASSWORD "AP2 비밀번호"
 
-#define D_MQTT_PARAMETERS "MQTT 상세"
+#define D_MQTT_PARAMETERS "MQTT 설정"
 #define D_CLIENT "클라이언트"
 #define D_FULL_TOPIC "Full Topic"
 
-#define D_LOGGING_PARAMETERS "로그 상세"
-#define D_SERIAL_LOG_LEVEL "시리얼 로그 레벨"
-#define D_MQTT_LOG_LEVEL "Mqtt log level"
+#define D_LOGGING_PARAMETERS "로그 설정"
+#define D_SERIAL_LOG_LEVEL "Serial 로그 레벨"
+#define D_MQTT_LOG_LEVEL "Mqtt 로그 레벨"
 #define D_WEB_LOG_LEVEL "Web 로그 레벨"
-#define D_SYS_LOG_LEVEL "Syslog 로그 레벨"
+#define D_SYS_LOG_LEVEL "시스템로그 레벨"
 #define D_MORE_DEBUG "More debug"
-#define D_SYSLOG_HOST "Syslog 호스트"
-#define D_SYSLOG_PORT "Syslog 포트"
+#define D_SYSLOG_HOST "시스템로그 호스트"
+#define D_SYSLOG_PORT "시스템로그 포트"
 #define D_TELEMETRY_PERIOD "보고 주기"
 
-#define D_OTHER_PARAMETERS "기타 상세"
+#define D_OTHER_PARAMETERS "기타 설정"
 #define D_TEMPLATE "템플릿"
-#define D_ACTIVATE "활성"
+#define D_ACTIVATE "활성화"
 #define D_WEB_ADMIN_PASSWORD "Web Admin 비밀번호"
 #define D_MQTT_ENABLE "MQTT 사용"
-#define D_FRIENDLY_NAME "별칭"
+#define D_FRIENDLY_NAME "Friendly Name"
 #define D_BELKIN_WEMO "Belkin WeMo"
 #define D_HUE_BRIDGE "Hue Bridge"
-#define D_SINGLE_DEVICE "single device"
-#define D_MULTI_DEVICE "multi device"
+#define D_SINGLE_DEVICE "단일 장치"
+#define D_MULTI_DEVICE "다수 장치"
 
 #define D_CONFIGURE_TEMPLATE "템플릿 설정"
-#define D_TEMPLATE_PARAMETERS "템플릿 상세"
+#define D_TEMPLATE_PARAMETERS "템플릿 설정"
 #define D_TEMPLATE_NAME "이름"
 #define D_BASE_TYPE "Based on"
 #define D_TEMPLATE_FLAGS "옵션"
@@ -327,15 +328,15 @@
 #define D_MQTT_FULL_TOPIC "MQTT Full Topic"
 #define D_MDNS_DISCOVERY "mDNS Discovery"
 #define D_MDNS_ADVERTISE "mDNS Advertise"
-#define D_ESP_CHIP_ID "ESP Chip Id"
-#define D_FLASH_CHIP_ID "Flash Chip Id"
-#define D_FLASH_CHIP_SIZE "Flash 용량"
+#define D_ESP_CHIP_ID "ESP 칩 Id"
+#define D_FLASH_CHIP_ID "플래시 칩 Id"
+#define D_FLASH_CHIP_SIZE "플래시 용량"
 #define D_FREE_PROGRAM_SPACE "여유 프로그램 공간"
 
 #define D_UPGRADE_BY_WEBSERVER "웹 서버에서 업그레이드"
 #define D_OTA_URL "OTA Url"
 #define D_START_UPGRADE "업그레이드 시작"
-#define D_UPGRADE_BY_FILE_UPLOAD "업로드 된 파일로 업그레이드"
+#define D_UPGRADE_BY_FILE_UPLOAD "파일에서 업로드해 업그레이드"
 #define D_UPLOAD_STARTED "업로드 시작됨"
 #define D_UPGRADE_STARTED "업그레이드 시작됨"
 #define D_UPLOAD_DONE "업그레이드 완료"
@@ -348,13 +349,13 @@
 #define D_UPLOAD_ERR_7 "업로드 중단"
 #define D_UPLOAD_ERR_8 "파일이 유효하지 않습니다"
 #define D_UPLOAD_ERR_9 "용량이 초과되었습니다"
-#define D_UPLOAD_ERR_10 "RF chip 초기화 실패"
-#define D_UPLOAD_ERR_11 "RF chip 삭제 실패"
-#define D_UPLOAD_ERR_12 "RF chip 쓰기 실패"
+#define D_UPLOAD_ERR_10 "RF 칩 초기화 실패"
+#define D_UPLOAD_ERR_11 "RF 칩 삭제 실패"
+#define D_UPLOAD_ERR_12 "RF 칩 쓰기 실패"
 #define D_UPLOAD_ERR_13 "RF 펌웨어 decode 실패"
 #define D_UPLOAD_ERROR_CODE "업로드 에러 코드"
 
-#define D_ENTER_COMMAND "명령 입력"
+#define D_ENTER_COMMAND "커맨드 입력"
 #define D_ENABLE_WEBLOG_FOR_RESPONSE "응답이 있다면 Weblog 2를 사용"
 #define D_NEED_USER_AND_PASSWORD "user=<아이디>&password=<비밀번호> 필요"
 
@@ -387,7 +388,7 @@
 #define D_3_RESPONSE_PACKETS_SENT "3 요청 패킷이 전송됨"
 
 // xdrv_07_domoticz.ino
-#define D_DOMOTICZ_PARAMETERS "Domoticz 상세"
+#define D_DOMOTICZ_PARAMETERS "Domoticz 설정"
 #define D_DOMOTICZ_IDX "Idx"
 #define D_DOMOTICZ_KEY_IDX "Key idx"
 #define D_DOMOTICZ_SWITCH_IDX "스위치 idx"
@@ -406,7 +407,7 @@
 
 // xdrv_09_timers.ino
 #define D_CONFIGURE_TIMER "타이머 설정"
-#define D_TIMER_PARAMETERS "타이머 상세"
+#define D_TIMER_PARAMETERS "타이머 설정"
 #define D_TIMER_ENABLE "타이머 사용"
 #define D_TIMER_ARM "Arm"
 #define D_TIMER_TIME "시간"
@@ -417,7 +418,7 @@
 
 // xdrv_10_knx.ino
 #define D_CONFIGURE_KNX "KNX 설정"
-#define D_KNX_PARAMETERS "KNX 상세"
+#define D_KNX_PARAMETERS "KNX 설정"
 #define D_KNX_GENERAL_CONFIG "일반"
 #define D_KNX_PHYSICAL_ADDRESS "물리적 주소"
 #define D_KNX_PHYSICAL_ADDRESS_NOTE "( KNX 네트워크 상에서 반드시 고유한 이름이어야 합니다 )"
@@ -427,7 +428,6 @@
 #define D_DELETE "삭제"
 #define D_REPLY "응답"
 #define D_KNX_GROUP_ADDRESS_TO_READ "받은 데이터의 그룹 주소"
-#define D_LOG_KNX "KNX: "
 #define D_RECEIVED_FROM "다음에서 받음"
 #define D_KNX_COMMAND_WRITE "쓰기"
 #define D_KNX_COMMAND_READ "읽기"
@@ -444,17 +444,17 @@
 #define D_ENERGY_TOTAL "총 전력 사용량"
 
 // xdrv_27_shutter.ino
-#define D_OPEN "Open"
-#define D_CLOSE "Close"
-#define D_DOMOTICZ_SHUTTER "Shutter"
+#define D_OPEN "열기"
+#define D_CLOSE "닫기"
+#define D_DOMOTICZ_SHUTTER "셔터"
 
 // xdrv_28_pcf8574.ino
-#define D_CONFIGURE_PCF8574 "Configure PCF8574"
-#define D_PCF8574_PARAMETERS "PCF8574 parameters"
-#define D_INVERT_PORTS "Invert Ports"
-#define D_DEVICE "Device"
-#define D_DEVICE_INPUT "Input"
-#define D_DEVICE_OUTPUT "Output"
+#define D_CONFIGURE_PCF8574 "PCF8574 설정"
+#define D_PCF8574_PARAMETERS "PCF8574 파라미터"
+#define D_INVERT_PORTS "포트 반전"
+#define D_DEVICE "장치"
+#define D_DEVICE_INPUT "입력"
+#define D_DEVICE_OUTPUT "출력"
 
 // xsns_05_ds18b20.ino
 #define D_SENSOR_BUSY "센서가 사용 중"
@@ -508,9 +508,6 @@
 #define D_TX20_SOUTH "S"
 #define D_TX20_WEST "W"
 
-//xsns_43_hre.ino
-#define D_LOG_HRE "HRE: "
-
 // tasmota_template.h - keep them as short as possible to be able to fit them in GUI drop down box
 #define D_SENSOR_NONE          "없음"
 #define D_SENSOR_USER          "User"
@@ -548,10 +545,12 @@
 #define D_SENSOR_PMS5003       "PMS5003"
 #define D_SENSOR_SDS0X1_RX     "SDS0X1 Rx"
 #define D_SENSOR_SDS0X1_TX     "SDS0X1 Tx"
+#define D_SENSOR_HPMA_RX       "HPMA Rx"
+#define D_SENSOR_HPMA_TX       "HPMA Tx"
 #define D_SENSOR_SBR_RX        "SerBr Rx"
 #define D_SENSOR_SBR_TX        "SerBr Tx"
-#define D_SENSOR_SR04_TRIG     "SR04 Tri"
-#define D_SENSOR_SR04_ECHO     "SR04 Ech"
+#define D_SENSOR_SR04_TRIG     "SR04 Tri/TX"
+#define D_SENSOR_SR04_ECHO     "SR04 Ech/RX"
 #define D_SENSOR_SDM120_TX     "SDMx20 Tx"
 #define D_SENSOR_SDM120_RX     "SDMx20 Rx"
 #define D_SENSOR_SDM630_TX     "SDM630 Tx"
@@ -664,31 +663,6 @@
 #define D_UNIT_WATT "W"
 #define D_UNIT_WATTHOUR "Wh"
 #define D_UNIT_WATT_METER_QUADRAT "W/m²"
-
-// Log message prefix
-#define D_LOG_APPLICATION "APP: "  // Application
-#define D_LOG_BRIDGE "BRG: "       // Bridge
-#define D_LOG_CONFIG "CFG: "       // Settings
-#define D_LOG_COMMAND "CMD: "      // Command
-#define D_LOG_DEBUG "DBG: "        // Debug
-#define D_LOG_DHT "DHT: "          // DHT sensor
-#define D_LOG_DOMOTICZ "DOM: "     // Domoticz
-#define D_LOG_DSB "DSB: "          // DS18xB20 sensor
-#define D_LOG_HTTP "HTP: "         // HTTP webserver
-#define D_LOG_I2C "I2C: "          // I2C
-#define D_LOG_IRR "IRR: "          // Infra Red Received
-#define D_LOG_LOG "LOG: "          // Logging
-#define D_LOG_MODULE "MOD: "       // Module
-#define D_LOG_MDNS "DNS: "         // mDNS
-#define D_LOG_MQTT "MQT: "         // MQTT
-#define D_LOG_OTHER "OTH: "        // Other
-#define D_LOG_RESULT "RSL: "       // Result
-#define D_LOG_RFR "RFR: "          // RF Received
-#define D_LOG_SERIAL "SER: "       // Serial
-#define D_LOG_SHT1 "SHT: "         // SHT1x sensor
-#define D_LOG_UPLOAD "UPL: "       // Upload
-#define D_LOG_UPNP "UPP: "         // UPnP
-#define D_LOG_WIFI "WIF: "         // Wifi
 
 //SDM220
 #define D_PHASE_ANGLE     "Phase Angle"

@@ -425,21 +425,20 @@ bool RuleSetProcess(uint8_t rule_set, String &event_saved)
     if (plen == -1) { plen = 9999; }
     if (plen2 == -1) { plen2 = 9999; }
     plen = tmin(plen, plen2);
-    if (plen == plen2) { stop_all_rules = true; }         // If BREAK was used, Stop execution of this rule set
 
     String commands = rules.substring(pevt +4, plen);     // "Backlog Dimmer 10;Color 100000"
-    plen += 6;
     Rules.event_value = "";
     String event = event_saved;
 
 //AddLog_P2(LOG_LEVEL_DEBUG, PSTR("RUL: Event |%s|, Rule |%s|, Command(s) |%s|"), event.c_str(), event_trigger.c_str(), commands.c_str());
 
     if (RulesRuleMatch(rule_set, event, event_trigger)) {
+      if (plen == plen2) { stop_all_rules = true; }         // If BREAK was used on a triggered rule, Stop execution of this rule set
       commands.trim();
       String ucommand = commands;
       ucommand.toUpperCase();
 //      if (!ucommand.startsWith("BACKLOG")) { commands = "backlog " + commands; }  // Always use Backlog to prevent power race exception
-      if (ucommand.indexOf("EVENT ") != -1) { commands = "backlog " + commands; }  // Always use Backlog with event to prevent rule event loop exception
+      if ((ucommand.indexOf("EVENT ") != -1) && (ucommand.indexOf("BACKLOG ") == -1)) { commands = "backlog " + commands; }  // Always use Backlog with event to prevent rule event loop exception
 
       RulesVarReplace(commands, F("%VALUE%"), Rules.event_value);
       for (uint32_t i = 0; i < MAX_RULE_VARS; i++) {
@@ -453,6 +452,7 @@ bool RuleSetProcess(uint8_t rule_set, String &event_saved)
       RulesVarReplace(commands, F("%TIME%"), String(MinutesPastMidnight()));
       RulesVarReplace(commands, F("%UPTIME%"), String(MinutesUptime()));
       RulesVarReplace(commands, F("%TIMESTAMP%"), GetDateAndTime(DT_LOCAL));
+      RulesVarReplace(commands, F("%TOPIC%"), Settings.mqtt_topic);
 #if defined(USE_TIMERS) && defined(USE_SUNRISE)
       RulesVarReplace(commands, F("%SUNRISE%"), String(SunMinutes(0)));
       RulesVarReplace(commands, F("%SUNSET%"), String(SunMinutes(1)));
@@ -473,6 +473,7 @@ bool RuleSetProcess(uint8_t rule_set, String &event_saved)
       serviced = true;
       if (stop_all_rules) { return serviced; }            // If BREAK was used, Stop execution of this rule set
     }
+    plen += 6;
     Rules.trigger_count[rule_set]++;
   }
   return serviced;
@@ -701,28 +702,6 @@ void RulesSetPower(void)
 {
   Rules.new_power = XdrvMailbox.index;
 }
-
-//stb mod
-void RulesBeforeTeleperiod(void)
-{
-  if (Settings.rule_enabled) {  // Any rule enabled
-    char json_event[32];
-
-    strncpy_P(json_event, PSTR("{\"System\":{\"PreTele\":1}}"), sizeof(json_event));
-    RulesProcessEvent(json_event);
-  }
-}
-
-void RulesAfterTeleperiod(void)
-{
-  if (Settings.rule_enabled) {  // Any rule enabled
-    char json_event[32];
-
-    strncpy_P(json_event, PSTR("{\"System\":{\"PostTele\":1}}"), sizeof(json_event));
-    RulesProcessEvent(json_event);
-  }
-}
-//
 
 void RulesTeleperiod(void)
 {
@@ -1248,7 +1227,7 @@ float evaluateExpression(const char * expression, unsigned int len)
 #endif  // USE_EXPRESSION
 
 #ifdef  SUPPORT_IF_STATEMENT
-void CmndIf()
+void CmndIf(void)
 {
   if (XdrvMailbox.data_len > 0) {
     char parameters[XdrvMailbox.data_len+1];

@@ -429,6 +429,12 @@ void MqttPublishPrefixTopic_P(uint32_t prefix, const char* subtopic)
   MqttPublishPrefixTopic_P(prefix, subtopic, false);
 }
 
+void MqttPublishTeleSensor(void)
+{
+  MqttPublishPrefixTopic_P(TELE, PSTR(D_RSLT_SENSOR), Settings.flag.mqtt_sensor_retain);  // CMND_SENSORRETAIN
+  XdrvRulesProcess();
+}
+
 void MqttPublishPowerState(uint32_t device)
 {
   char stopic[TOPSZ];
@@ -462,7 +468,7 @@ void MqttPublishPowerState(uint32_t device)
 #endif  // USE_SONOFF_IFAN
 }
 
-void MqttPublishAllPowerState()
+void MqttPublishAllPowerState(void)
 {
   for (uint32_t i = 1; i <= devices_present; i++) {
     MqttPublishPowerState(i);
@@ -487,7 +493,7 @@ void MqttPublishPowerBlinkState(uint32_t device)
 
 /*********************************************************************************************/
 
-uint16_t MqttConnectCount()
+uint16_t MqttConnectCount(void)
 {
   return Mqtt.connect_count;
 }
@@ -549,10 +555,18 @@ void MqttConnected(void)
       MqttPublishPrefixTopic_P(TELE, PSTR(D_RSLT_INFO "2"));
     }
 #endif  // USE_WEBSERVER
-    Response_P(PSTR("{\"" D_JSON_RESTARTREASON "\":\"%s\"}"), (GetResetReason() == "Exception") ? ESP.getResetInfo().c_str() : GetResetReason().c_str());
+    Response_P(PSTR("{\"" D_JSON_RESTARTREASON "\":"));
+    if (ResetReason() == REASON_EXCEPTION_RST) {
+      CrashDump();
+    } else {
+      ResponseAppend_P(PSTR("\"%s\""), GetResetReason().c_str());
+    }
+    ResponseJsonEnd();
     MqttPublishPrefixTopic_P(TELE, PSTR(D_RSLT_INFO "3"));
     MqttPublishAllPowerState();
-    if (Settings.tele_period) { tele_period = Settings.tele_period -9; }  // Enable TelePeriod in 9 seconds
+    if (Settings.tele_period) {
+      tele_period = Settings.tele_period -5;  // Enable TelePeriod in 5 seconds
+    }
     rules_flag.system_boot = 1;
     XdrvCall(FUNC_MQTT_INIT);
   }
@@ -1063,6 +1077,9 @@ void CmndTlsKey(void) {
       }
       memcpy_P(spi_buffer, tls_spi_start, tls_spi_len);
 
+      // remove any white space from the base64
+      RemoveAllSpaces(XdrvMailbox.data);
+
       // allocate buffer for decoded base64
       uint32_t bin_len = decode_base64_length((unsigned char*)XdrvMailbox.data);
       uint8_t  *bin_buf = nullptr;
@@ -1126,7 +1143,9 @@ void CmndTlsKey(void) {
         memcpy(spi_buffer + tls_obj_store_offset + entry->start, bin_buf, entry->len);
       }
 
-      TlsWriteSpiBuffer(spi_buffer);
+      if (ESP.flashEraseSector(tls_spi_start_sector)) {
+        ESP.flashWrite(tls_spi_start_sector * SPI_FLASH_SEC_SIZE, (uint32_t*) spi_buffer, SPI_FLASH_SEC_SIZE);
+      }
       free(spi_buffer);
       free(bin_buf);
     }
@@ -1136,26 +1155,6 @@ void CmndTlsKey(void) {
       XdrvMailbox.command, AWS_IoT_Private_Key ? tls_dir.entry[0].len : -1,
       XdrvMailbox.command, AWS_IoT_Client_Certificate ? tls_dir.entry[1].len : -1);
   }
-}
-
-
-extern "C" {
-#include "spi_flash.h"
-}
-
-void TlsWriteSpiBuffer(uint8_t *buf) {
-  bool ret = false;
-  SpiFlashOpResult res;
-
-  noInterrupts();
-  res = spi_flash_erase_sector(tls_spi_start_sector);
-  if (SPI_FLASH_RESULT_OK == res) {
-    res = spi_flash_write(tls_spi_start_sector * SPI_FLASH_SEC_SIZE, (uint32_t*) buf, SPI_FLASH_SEC_SIZE);
-    if (SPI_FLASH_RESULT_OK == res) {
-      ret = true;
-    }
-  }
-  interrupts();
 }
 
 #ifdef DEBUG_DUMP_TLS

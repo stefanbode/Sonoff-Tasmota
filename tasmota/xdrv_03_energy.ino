@@ -425,12 +425,12 @@ void EnergyMqttShow(void)
   EnergyShow(true);
   tele_period = tele_period_save;
   ResponseJsonEnd();
-  MqttPublishPrefixTopic_P(TELE, PSTR(D_RSLT_SENSOR), Settings.flag.mqtt_sensor_retain);  // CMND_SENSORRETAIN
+  MqttPublishTeleSensor();
   Energy.power_delta = false;
 }
 #endif  // USE_ENERGY_MARGIN_DETECTION
 
-void EnergyEverySecond()
+void EnergyEverySecond(void)
 {
   // Overtemp check
   if (global_update) {
@@ -823,12 +823,6 @@ void CmndMaxEnergyStart(void)
 #endif  // USE_ENERGY_POWER_LIMIT
 #endif  // USE_ENERGY_MARGIN_DETECTION
 
-void EnergyDrvInit(void)
-{
-  energy_flg = ENERGY_NONE;
-  XnrgCall(FUNC_PRE_INIT);  // Find first energy driver
-}
-
 void EnergySnsInit(void)
 {
   XnrgCall(FUNC_INIT);
@@ -1107,7 +1101,8 @@ bool Xdrv03(uint8_t function)
   bool result = false;
 
   if (FUNC_PRE_INIT == function) {
-    EnergyDrvInit();
+    energy_flg = ENERGY_NONE;
+    XnrgCall(FUNC_PRE_INIT);  // Find first energy driver
   }
   else if (energy_flg) {
     switch (function) {

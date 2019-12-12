@@ -22,6 +22,7 @@
 #ifdef USE_DISPLAY_ILI9488
 
 #define XDSP_08                8
+#define XI2C_38                38  // See I2CDEVICES.md
 
 #define COLORED                1
 #define UNCOLORED              0
@@ -112,7 +113,7 @@ void ILI9488_InitDriver()
     color_type = COLOR_COLOR;
     // start digitizer with fixed adress
 
-    if (i2c_flg && I2cDevice(FT6236_address)) {
+    if (I2cEnabled(XI2C_38) && I2cSetDevice(FT6236_address)) {
       FT6236begin(FT6236_address);
       FT6236_found=1;
     } else {
@@ -125,7 +126,7 @@ void ILI9488_InitDriver()
 #ifdef USE_TOUCH_BUTTONS
 void ILI9488_MQTT(uint8_t count,const char *cp) {
   ResponseTime_P(PSTR(",\"RA8876\":{\"%s%d\":\"%d\"}}"), cp,count+1,(buttons[count]->vpower&0x80)>>7);
-  MqttPublishPrefixTopic_P(TELE, PSTR(D_RSLT_SENSOR), Settings.flag.mqtt_sensor_retain);  // CMND_SENSORRETAIN
+  MqttPublishTeleSensor();
 }
 
 void ILI9488_RDW_BUTT(uint32_t count,uint32_t pwr) {

@@ -20,6 +20,10 @@
 IPAddress syslog_host_addr;      // Syslog host IP address
 uint32_t syslog_host_hash = 0;   // Syslog host name hash
 
+extern "C" {
+extern struct rst_info resetInfo;
+}
+
 /*********************************************************************************************\
  * Watchdog extension (https://github.com/esp8266/Arduino/issues/1532)
 \*********************************************************************************************/
@@ -47,7 +51,7 @@ void OsWatchTicker(void)
   uint32_t last_run = abs(t - oswatch_last_loop_time);
 
 #ifdef DEBUG_THEO
-  AddLog_P2(LOG_LEVEL_DEBUG, PSTR(D_LOG_APPLICATION D_OSWATCH " FreeRam %d, rssi %d, last_run %d"), ESP.getFreeHeap(), WifiGetRssiAsQuality(WiFi.RSSI()), last_run);
+  AddLog_P2(LOG_LEVEL_DEBUG, PSTR(D_LOG_APPLICATION D_OSWATCH " FreeRam %d, rssi %d %% (%d dBm), last_run %d"), ESP.getFreeHeap(), WifiGetRssiAsQuality(WiFi.RSSI()), WiFi.RSSI(), last_run);
 #endif  // DEBUG_THEO
   if (last_run >= (OSWATCH_RESET_TIME * 1000)) {
 //    AddLog_P(LOG_LEVEL_INFO, PSTR(D_LOG_APPLICATION D_OSWATCH " " D_BLOCKED_LOOP ". " D_RESTARTING));  // Save iram space
@@ -72,6 +76,26 @@ void OsWatchLoop(void)
 //  while(1) delay(1000);  // this will trigger the os watch
 }
 
+bool OsWatchBlockedLoop(void)
+{
+  return oswatch_blocked_loop;
+}
+
+uint32_t ResetReason(void)
+{
+  /*
+    user_interface.h
+    REASON_DEFAULT_RST      = 0,  // "Power on"                normal startup by power on
+    REASON_WDT_RST          = 1,  // "Hardware Watchdog"       hardware watch dog reset
+    REASON_EXCEPTION_RST    = 2,  // "Exception"               exception reset, GPIO status won’t change
+    REASON_SOFT_WDT_RST     = 3,  // "Software Watchdog"       software watch dog reset, GPIO status won’t change
+    REASON_SOFT_RESTART     = 4,  // "Software/System restart" software restart ,system_restart , GPIO status won’t change
+    REASON_DEEP_SLEEP_AWAKE = 5,  // "Deep-Sleep Wake"         wake up from deep-sleep
+    REASON_EXT_SYS_RST      = 6   // "External System"         external system reset
+  */
+  return resetInfo.reason;
+}
+
 String GetResetReason(void)
 {
   if (oswatch_blocked_loop) {
@@ -83,130 +107,9 @@ String GetResetReason(void)
   }
 }
 
-bool OsWatchBlockedLoop(void)
-{
-  return oswatch_blocked_loop;
-}
 /*********************************************************************************************\
  * Miscellaneous
 \*********************************************************************************************/
-
-#ifdef ARDUINO_ESP8266_RELEASE_2_3_0
-// Functions not available in 2.3.0
-
-// http://clc-wiki.net/wiki/C_standard_library:string.h:memchr
-void* memchr(const void* ptr, int value, size_t num)
-{
-  unsigned char *p = (unsigned char*)ptr;
-  while (num--) {
-    if (*p != (unsigned char)value) {
-      p++;
-    } else {
-      return p;
-    }
-  }
-  return 0;
-}
-
-// http://clc-wiki.net/wiki/C_standard_library:string.h:strcspn
-// Get span until any character in string
-size_t strcspn(const char *str1, const char *str2)
-{
-  size_t ret = 0;
-  while (*str1) {
-    if (strchr(str2, *str1)) {  // Slow
-      return ret;
-    } else {
-      str1++;
-      ret++;
-    }
-  }
-  return ret;
-}
-
-// https://clc-wiki.net/wiki/C_standard_library:string.h:strpbrk
-// Locate the first occurrence in the string pointed to by s1 of any character from the string pointed to by s2
-char* strpbrk(const char *s1, const char *s2)
-{
-  while(*s1) {
-    if (strchr(s2, *s1++)) {
-      return (char*)--s1;
-    }
-  }
-  return 0;
-}
-
-// https://opensource.apple.com/source/Libc/Libc-583/stdlib/FreeBSD/strtoull.c
-// Convert a string to an unsigned long long integer
-#ifndef __LONG_LONG_MAX__
-#define __LONG_LONG_MAX__ 9223372036854775807LL
-#endif
-#ifndef ULLONG_MAX
-#define ULLONG_MAX (__LONG_LONG_MAX__ * 2ULL + 1)
-#endif
-
-unsigned long long strtoull(const char *__restrict nptr, char **__restrict endptr, int base)
-{
-  const char *s = nptr;
-  char c;
-  do { c = *s++; } while (isspace((unsigned char)c));                         // Trim leading spaces
-
-  int neg = 0;
-  if (c == '-') {                                                             // Set minus flag and/or skip sign
-    neg = 1;
-    c = *s++;
-  } else {
-    if (c == '+') {
-      c = *s++;
-    }
-  }
-
-  if ((base == 0 || base == 16) && (c == '0') && (*s == 'x' || *s == 'X')) {  // Set Hexadecimal
-    c = s[1];
-    s += 2;
-    base = 16;
-  }
-  if (base == 0) { base = (c == '0') ? 8 : 10; }                              // Set Octal or Decimal
-
-  unsigned long long acc = 0;
-  int any = 0;
-  if (base > 1 && base < 37) {
-    unsigned long long cutoff = ULLONG_MAX / base;
-    int cutlim = ULLONG_MAX % base;
-    for ( ; ; c = *s++) {
-      if (c >= '0' && c <= '9')
-        c -= '0';
-      else if (c >= 'A' && c <= 'Z')
-        c -= 'A' - 10;
-      else if (c >= 'a' && c <= 'z')
-        c -= 'a' - 10;
-      else
-        break;
-
-      if (c >= base)
-        break;
-
-      if (any < 0 || acc > cutoff || (acc == cutoff && c > cutlim))
-        any = -1;
-      else {
-        any = 1;
-        acc *= base;
-        acc += c;
-      }
-    }
-    if (any < 0) {
-      acc = ULLONG_MAX;                                                       // Range error
-    }
-    else if (any && neg) {
-      acc = -acc;
-    }
-  }
-
-  if (endptr != nullptr) { *endptr = (char *)(any ? s - 1 : nptr); }
-
-  return acc;
-}
-#endif  // ARDUINO_ESP8266_RELEASE_2_3_0
 
 // Get span until single character in string
 size_t strchrspn(const char *str1, int character)
@@ -474,6 +377,23 @@ char* Trim(char* p)
   return p;
 }
 
+char* RemoveAllSpaces(char* p)
+{
+  // remove any white space from the base64
+  char *cursor = p;
+  uint32_t offset = 0;
+  while (1) {
+    *cursor = *(cursor + offset);
+    if ((' ' == *cursor) || ('\t' == *cursor) || ('\n' == *cursor)) {   // if space found, remove this char until end of string
+      offset++;
+    } else {
+      if (0 == *cursor) { break; }
+      cursor++;
+    }
+  }
+  return p;
+}
+
 char* NoAlNumToUnderscore(char* dest, const char* source)
 {
   char* write = dest;
@@ -487,7 +407,7 @@ char* NoAlNumToUnderscore(char* dest, const char* source)
   return dest;
 }
 
-char IndexSeparator()
+char IndexSeparator(void)
 {
 /*
   // 20 bytes more costly !?!
@@ -510,7 +430,7 @@ void SetShortcutDefault(void)
   }
 }
 
-uint8_t Shortcut()
+uint8_t Shortcut(void)
 {
   uint8_t result = 10;
 
@@ -610,6 +530,31 @@ char* GetPowerDevice(char* dest, uint32_t idx, size_t size, uint32_t option)
 char* GetPowerDevice(char* dest, uint32_t idx, size_t size)
 {
   return GetPowerDevice(dest, idx, size, 0);
+}
+
+void GetEspHardwareType(void)
+{
+  // esptool.py get_efuses
+  uint32_t efuse1 = *(uint32_t*)(0x3FF00050);
+  uint32_t efuse2 = *(uint32_t*)(0x3FF00054);
+//  uint32_t efuse3 = *(uint32_t*)(0x3FF00058);
+//  uint32_t efuse4 = *(uint32_t*)(0x3FF0005C);
+
+  is_8285 = ( (efuse1 & (1 << 4)) || (efuse2 & (1 << 16)) );
+  if (is_8285 && (ESP.getFlashChipRealSize() > 1048576)) {
+    is_8285 = false;  // ESP8285 can only have 1M flash
+  }
+}
+
+String GetDeviceHardware(void)
+{
+  char buff[10];
+  if (is_8285) {
+    strcpy_P(buff, PSTR("ESP8285"));
+  } else {
+    strcpy_P(buff, PSTR("ESP8266EX"));
+  }
+  return String(buff);
 }
 
 float ConvertTemp(float c)
@@ -779,15 +724,15 @@ bool DecodeCommand(const char* haystack, void (* const MyCommand[])(void))
   return false;
 }
 
-const char kOptions[] PROGMEM = "OFF|" D_OFF "|" D_FALSE "|" D_STOP "|" D_CELSIUS "|"              // 0
-                                "ON|" D_ON "|" D_TRUE "|" D_START "|" D_FAHRENHEIT "|" D_USER "|"  // 1
-                                "TOGGLE|" D_TOGGLE "|" D_ADMIN "|"                                 // 2
-                                "BLINK|" D_BLINK "|"                                               // 3
-                                "BLINKOFF|" D_BLINKOFF "|"                                         // 4
-                                "ALL" ;                                                            // 255
+const char kOptions[] PROGMEM = "OFF|" D_OFF "|FALSE|" D_FALSE "|STOP|" D_STOP "|" D_CELSIUS "|"              // 0
+                                "ON|" D_ON "|TRUE|" D_TRUE "|START|" D_START "|" D_FAHRENHEIT "|" D_USER "|"  // 1
+                                "TOGGLE|" D_TOGGLE "|" D_ADMIN "|"                                            // 2
+                                "BLINK|" D_BLINK "|"                                                          // 3
+                                "BLINKOFF|" D_BLINKOFF "|"                                                    // 4
+                                "ALL" ;                                                                       // 255
 
-const uint8_t sNumbers[] PROGMEM = { 0,0,0,0,0,
-                                     1,1,1,1,1,1,
+const uint8_t sNumbers[] PROGMEM = { 0,0,0,0,0,0,0,
+                                     1,1,1,1,1,1,1,1,
                                      2,2,2,
                                      3,3,
                                      4,4,
@@ -803,19 +748,50 @@ int GetStateNumber(char *state_text)
   return state_number;
 }
 
+String GetSerialConfig(void)
+{
+  // Settings.serial_config layout
+  // b000000xx - 5, 6, 7 or 8 data bits
+  // b00000x00 - 1 or 2 stop bits
+  // b000xx000 - None, Even or Odd parity
+
+  const char kParity[] = "NEOI";
+
+  char config[4];
+  config[0] = '5' + (Settings.serial_config & 0x3);
+  config[1] = kParity[(Settings.serial_config >> 3) & 0x3];
+  config[2] = '1' + ((Settings.serial_config >> 2) & 0x1);
+  config[3] = '\0';
+  return String(config);
+}
+
+void SetSerialBegin(uint32_t baudrate)
+{
+  if (seriallog_level) {
+    AddLog_P2(LOG_LEVEL_INFO, PSTR(D_LOG_APPLICATION "Set Serial to %s %d bit/s"), GetSerialConfig().c_str(), baudrate);
+    delay(100);
+  }
+  Serial.flush();
+  Serial.begin(baudrate, (SerialConfig)pgm_read_byte(kTasmotaSerialConfig + Settings.serial_config));
+  delay(10);
+  Serial.println();
+}
+
+void SetSerialConfig(uint32_t serial_config)
+{
+  if (serial_config == Settings.serial_config) { return; }
+  if (serial_config > TS_SERIAL_8O2) { return; }
+
+  Settings.serial_config = serial_config;
+  SetSerialBegin(Serial.baudRate());
+}
+
 void SetSerialBaudrate(int baudrate)
 {
   Settings.baudrate = baudrate / 300;
-  if (Serial.baudRate() != baudrate) {
-    if (seriallog_level) {
-      AddLog_P2(LOG_LEVEL_INFO, PSTR(D_LOG_APPLICATION D_SET_BAUDRATE_TO " %d"), baudrate);
-    }
-    delay(100);
-    Serial.flush();
-    Serial.begin(baudrate, serial_config);
-    delay(10);
-    Serial.println();
-  }
+  if (Serial.baudRate() == baudrate) { return; }
+
+  SetSerialBegin(baudrate);
 }
 
 void ClaimSerial(void)
@@ -1003,7 +979,7 @@ int ResponseJsonEndEnd(void)
  * GPIO Module and Template management
 \*********************************************************************************************/
 
-uint8_t ModuleNr()
+uint8_t ModuleNr(void)
 {
   // 0    = User module (255)
   // 1 up = Template module 0 up
@@ -1035,7 +1011,7 @@ String AnyModuleName(uint32_t index)
   }
 }
 
-String ModuleName()
+String ModuleName(void)
 {
   return AnyModuleName(Settings.module);
 }
@@ -1067,7 +1043,7 @@ void ModuleGpios(myio *gp)
 //  AddLogBuffer(LOG_LEVEL_DEBUG, (uint8_t *)gp, sizeof(myio));
 }
 
-gpio_flag ModuleFlag()
+gpio_flag ModuleFlag(void)
 {
   gpio_flag flag;
 
@@ -1087,7 +1063,7 @@ void ModuleDefault(uint32_t module)
   memcpy_P(&Settings.user_template, &kModules[module], sizeof(mytmplt));
 }
 
-void SetModuleType()
+void SetModuleType(void)
 {
   my_module_type = (USER_MODULE == Settings.module) ? Settings.user_template_base : Settings.module;
 }
@@ -1099,15 +1075,18 @@ bool FlashPin(uint32_t pin)
 
 uint8_t ValidPin(uint32_t pin, uint32_t gpio)
 {
-  uint8_t result = gpio;
-
   if (FlashPin(pin)) {
-    result = GPIO_NONE;  // Disable flash pins GPIO6, GPIO7, GPIO8 and GPIO11
+    return GPIO_NONE;    // Disable flash pins GPIO6, GPIO7, GPIO8 and GPIO11
   }
-  if ((WEMOS == Settings.module) && (!Settings.flag3.user_esp8285_enable)) {  // SetOption51 - Enable ESP8285 user GPIO's
-    if ((pin == 9) || (pin == 10)) { result = GPIO_NONE; }  // Disable possible flash GPIO9 and GPIO10
+
+//  if (!is_8285 && !Settings.flag3.user_esp8285_enable) {  // SetOption51 - Enable ESP8285 user GPIO's
+  if ((WEMOS == Settings.module) && !Settings.flag3.user_esp8285_enable) {  // SetOption51 - Enable ESP8285 user GPIO's
+    if ((pin == 9) || (pin == 10)) {
+      return GPIO_NONE;  // Disable possible flash GPIO9 and GPIO10
+    }
   }
-  return result;
+
+  return gpio;
 }
 
 bool ValidGPIO(uint32_t pin, uint32_t gpio)
@@ -1115,7 +1094,7 @@ bool ValidGPIO(uint32_t pin, uint32_t gpio)
   return (GPIO_USER == ValidPin(pin, gpio));  // Only allow GPIO_USER pins
 }
 
-bool ValidAdc()
+bool ValidAdc(void)
 {
   gpio_flag flag = ModuleFlag();
   uint32_t template_adc0 = flag.data &15;
@@ -1215,7 +1194,7 @@ bool JsonTemplate(const char* dataBuf)
   return true;
 }
 
-void TemplateJson()
+void TemplateJson(void)
 {
   Response_P(PSTR("{\"" D_JSON_NAME "\":\"%s\",\"" D_JSON_GPIO "\":["), Settings.user_template.name);
   for (uint32_t i = 0; i < sizeof(Settings.user_template.gp); i++) {
@@ -1488,6 +1467,17 @@ void I2cScan(char *devs, unsigned int devs_len)
   }
 }
 
+void I2cResetActive(uint32_t addr, uint32_t count = 1)
+{
+  addr &= 0x7F;         // Max I2C address is 127
+  count &= 0x7F;        // Max 4 x 32 bits available
+  while (count-- && (addr < 128)) {
+    i2c_active[addr / 32] &= ~(1 << (addr % 32));
+    addr++;
+  }
+//  AddLog_P2(LOG_LEVEL_DEBUG, PSTR("I2C: Active %08X,%08X,%08X,%08X"), i2c_active[0], i2c_active[1], i2c_active[2], i2c_active[3]);
+}
+
 void I2cSetActive(uint32_t addr, uint32_t count = 1)
 {
   addr &= 0x7F;         // Max I2C address is 127
@@ -1499,6 +1489,12 @@ void I2cSetActive(uint32_t addr, uint32_t count = 1)
 //  AddLog_P2(LOG_LEVEL_DEBUG, PSTR("I2C: Active %08X,%08X,%08X,%08X"), i2c_active[0], i2c_active[1], i2c_active[2], i2c_active[3]);
 }
 
+void I2cSetActiveFound(uint32_t addr, const char *types)
+{
+  I2cSetActive(addr);
+  AddLog_P2(LOG_LEVEL_INFO, S_LOG_I2C_FOUND_AT, types, addr);
+}
+
 bool I2cActive(uint32_t addr)
 {
   addr &= 0x7F;         // Max I2C address is 127
@@ -1508,14 +1504,18 @@ bool I2cActive(uint32_t addr)
   return false;
 }
 
-bool I2cDevice(uint8_t addr)
+bool I2cSetDevice(uint32_t addr)
 {
   addr &= 0x7F;         // Max I2C address is 127
   if (I2cActive(addr)) {
     return false;       // If already active report as not present;
   }
-  Wire.beginTransmission(addr);
-  return (0 == Wire.endTransmission());
+  Wire.beginTransmission((uint8_t)addr);
+  bool result = (0 == Wire.endTransmission());
+  if (result) {
+    I2cSetActive(addr, 1);
+  }
+  return result;
 }
 #endif  // USE_I2C
 

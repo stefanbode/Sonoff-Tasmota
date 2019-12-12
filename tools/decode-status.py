@@ -129,7 +129,8 @@ a_setoption = [[
     "Enable HTTP CORS",
     "Enable internal pullup for single DS18x20 sensor",
     "GroupTopic replaces %topic% (0) or fixed topic cmnd/grouptopic (1)",
-    "","",
+    "Enable incrementing bootcount when deepsleep is enabled",
+    "Do not power off if slider moved to far left",
     "","",
     "Enable shutter support",
     "Invert PCF8574 ports"
@@ -185,7 +186,7 @@ a_features = [[
     "USE_INA226","USE_A4988_STEPPER","USE_DDS2382","USE_SM2135",
     "USE_SHUTTER","USE_PCF8574","USE_DDSU666","USE_DEEPSLEEP",
     "USE_SONOFF_SC","USE_SONOFF_RF","USE_SONOFF_L1","USE_EXS_DIMMER",
-    "USE_ARDUINO_SLAVE","USE_HIH6","","",
+    "USE_ARDUINO_SLAVE","USE_HIH6","USE_HPMA","USE_TSL2591",
     "","","","",
     "","","","",
     "","","",""

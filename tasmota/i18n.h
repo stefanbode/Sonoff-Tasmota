@@ -134,6 +134,7 @@
 #define D_JSON_SELECTED "selected"
 #define D_JSON_SERIALRECEIVED "SerialReceived"
 #define D_JSON_SET "Set"
+#define D_JSON_SIGNAL "Signal"
 #define D_JSON_SSID "SSId"
 #define D_JSON_STARTDST "StartDST"       // Start Daylight Savings Time
 #define D_JSON_STARTED "Started"
@@ -208,6 +209,7 @@
   #define D_STATUS9_MARGIN "PTH"
   #define D_STATUS10_SENSOR "SNS"
   #define D_STATUS11_STATUS "STS"
+  #define D_STATUS12_STATUS "STK"
 #define D_CMND_STATE "State"
 #define D_CMND_POWER "Power"
 #define D_CMND_FANSPEED "FanSpeed"
@@ -279,16 +281,19 @@
 #define D_CMND_LEDPOWER "LedPower"
 #define D_CMND_LEDSTATE "LedState"
 #define D_CMND_LEDMASK "LedMask"
+#define D_CMND_WIFIPOWER "WifiPower"
 #define D_CMND_I2CSCAN "I2CScan"
 #define D_CMND_I2CDRIVER "I2CDriver"
 #define D_CMND_SERIALSEND "SerialSend"
 #define D_CMND_SERIALDELIMITER "SerialDelimiter"
 #define D_CMND_BAUDRATE "Baudrate"
+#define D_CMND_SERIALCONFIG "SerialConfig"
 #define D_CMND_TEMPLATE "Template"
   #define D_JSON_NAME "NAME"
   #define D_JSON_GPIO "GPIO"
   #define D_JSON_FLAG "FLAG"
   #define D_JSON_BASE "BASE"
+#define D_CMND_TEMPOFFSET "TempOffset"
 
 // Commands xdrv_01_mqtt.ino
 #define D_CMND_MQTTLOG "MqttLog"
@@ -330,6 +335,7 @@
 #define D_CMND_WEBSENSOR "WebSensor"
 #define D_CMND_EMULATION "Emulation"
 #define D_CMND_SENDMAIL "Sendmail"
+#define D_CMND_CORS "CORS"
 
 // Commands xdrv_03_energy.ino
 #define D_CMND_POWERLOW "PowerLow"
@@ -463,7 +469,7 @@
 #define D_CMND_ZIGBEE_RESET "ZigbeeReset"
   #define D_JSON_ZIGBEE_CC2530 "CC2530"
 #define D_CMND_ZIGBEEZNPSEND "ZigbeeZNPSend"
-  #define D_JSON_ZIGBEE_STATUS "ZigbeeStatus"
+  #define D_JSON_ZIGBEE_STATE "ZigbeeState"
   #define D_JSON_ZIGBEEZNPRECEIVED "ZigbeeZNPReceived"
   #define D_JSON_ZIGBEEZNPSENT "ZigbeeZNPSent"
   #define D_JSON_ZIGBEEZCL_RECEIVED "ZigbeeZCLReceived"
@@ -488,9 +494,53 @@
     #define D_JSON_MOTOR_MIS "setMIS"
   #endif
 
-//stb mod
-#define D_CMND_TEMPOFFSET "tempoffset"
-//end
+  // Commands xdrv_27_Shutter.ino
+  #ifdef USE_SHUTTER
+    #define D_PRFX_SHUTTER "Shutter"
+    #define D_CMND_SHUTTER_OPEN "Open"
+    #define D_CMND_SHUTTER_CLOSE "Close"
+    #define D_CMND_SHUTTER_STOP "Stop"
+    #define D_CMND_SHUTTER_POSITION "Position"
+    #define D_CMND_SHUTTER_OPENTIME "OpenDuration"
+    #define D_CMND_SHUTTER_CLOSETIME "CloseDuration"
+    #define D_CMND_SHUTTER_RELAY "Relay"
+    #define D_CMND_SHUTTER_SETHALFWAY "SetHalfway"
+    #define D_CMND_SHUTTER_SETCLOSE "SetClose"
+    #define D_CMND_SHUTTER_INVERT "Invert"
+    #define D_CMND_SHUTTER_CLIBRATION "Calibration"
+    #define D_CMND_SHUTTER_MOTORDELAY "MotorDelay"
+    #define D_CMND_SHUTTER_FREQUENCY "Frequency"
+  #endif
+/********************************************************************************************/
+
+// Log message prefix
+#define D_LOG_APPLICATION "APP: "  // Application
+#define D_LOG_BRIDGE "BRG: "       // Bridge
+#define D_LOG_CONFIG "CFG: "       // Settings
+#define D_LOG_COMMAND "CMD: "      // Command
+#define D_LOG_DEBUG "DBG: "        // Debug
+#define D_LOG_DHT "DHT: "          // DHT sensor
+#define D_LOG_DOMOTICZ "DOM: "     // Domoticz
+#define D_LOG_DSB "DSB: "          // DS18xB20 sensor
+#define D_LOG_HTTP "HTP: "         // HTTP webserver
+#define D_LOG_HRE "HRE: "
+#define D_LOG_I2C "I2C: "          // I2C
+#define D_LOG_IRR "IRR: "          // Infra Red Received
+#define D_LOG_KNX "KNX: "
+#define D_LOG_LOG "LOG: "          // Logging
+#define D_LOG_MODULE "MOD: "       // Module
+#define D_LOG_MDNS "DNS: "         // mDNS
+#define D_LOG_MQTT "MQT: "         // MQTT
+#define D_LOG_OTHER "OTH: "        // Other
+#define D_LOG_RESULT "RSL: "       // Result
+#define D_LOG_RFR "RFR: "          // RF Received
+#define D_LOG_SERIAL "SER: "       // Serial
+#define D_LOG_SHT1 "SHT: "         // SHT1x sensor
+#define D_LOG_UPLOAD "UPL: "       // Upload
+#define D_LOG_UPNP "UPP: "         // UPnP
+#define D_LOG_WIFI "WIF: "         // Wifi
+#define D_LOG_ZIGBEE "ZIG: "       // Zigbee
+
 /********************************************************************************************/
 
 #define D_ASTERISK_PWD "****"

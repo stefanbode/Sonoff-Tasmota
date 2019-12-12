@@ -57,6 +57,7 @@
 #define D_JSON_WEIGHT_MAX    "WeightMax"
 #define D_JSON_WEIGHT_ITEM   "WeightItem"
 #define D_JSON_WEIGHT_CHANGE "WeightChange"
+#define D_JSON_WEIGHT_RAW    "WeightRaw"
 
 enum HxCalibrationSteps { HX_CAL_END, HX_CAL_LIMBO, HX_CAL_FINISH, HX_CAL_FAIL, HX_CAL_DONE, HX_CAL_FIRST, HX_CAL_RESET, HX_CAL_START };
 
@@ -64,8 +65,10 @@ const char kHxCalibrationStates[] PROGMEM = D_HX_CAL_FAIL "|" D_HX_CAL_DONE "|" 
 
 struct HX {
   long weight = 0;
+  long raw = 0;
   long last_weight = 0;
   long sum_weight = 0;
+  long sum_raw = 0;
   long offset = 0;
   long scale = 1;
   long weight_diff = 0;
@@ -90,7 +93,7 @@ bool HxIsReady(uint16_t timeout)
   return (digitalRead(Hx.pin_dout) == LOW);
 }
 
-long HxRead()
+long HxRead(void)
 {
   if (!HxIsReady(HX_TIMEOUT)) { return -1; }
 
@@ -241,7 +244,7 @@ bool HxCommand(void)
 
 /*********************************************************************************************/
 
-long HxWeight()
+long HxWeight(void)
 {
   return (Hx.calibrate_step < HX_CAL_FAIL) ? Hx.weight : 0;
 }
@@ -272,13 +275,17 @@ void HxInit(void)
 
 void HxEvery100mSecond(void)
 {
-  Hx.sum_weight += HxRead();
+  long raw = HxRead();
+  Hx.sum_raw += raw;
+  Hx.sum_weight += raw;
 
   Hx.sample_count++;
   if (HX_SAMPLES == Hx.sample_count) {
     long average = Hx.sum_weight / Hx.sample_count;  // grams
+    long raw_average = Hx.sum_raw / Hx.sample_count;  // grams
     long value = average - Hx.offset;                // grams
     Hx.weight = value / Hx.scale;                    // grams
+    Hx.raw = raw_average / Hx.scale;
     if (Hx.weight < 0) {
       if (Settings.energy_frequency_calibration) {
         long difference = Settings.energy_frequency_calibration + Hx.weight;
@@ -360,18 +367,19 @@ void HxEvery100mSecond(void)
           ResponseAppendTime();
           HxShow(true);
           ResponseJsonEnd();
-          MqttPublishPrefixTopic_P(TELE, PSTR(D_RSLT_SENSOR), Settings.flag.mqtt_sensor_retain);  // CMND_SENSORRETAIN
+          MqttPublishTeleSensor();
           Hx.weight_changed = false;
         }
       }
     }
 
     Hx.sum_weight = 0;
+    Hx.sum_raw = 0;
     Hx.sample_count = 0;
   }
 }
 
-void HxSaveBeforeRestart()
+void HxSaveBeforeRestart(void)
 {
   Settings.energy_frequency_calibration = Hx.weight;
   Hx.sample_count = HX_SAMPLES +1;                   // Stop updating Hx.weight
@@ -405,7 +413,7 @@ void HxShow(bool json)
   dtostrfd(weight, Settings.flag2.weight_resolution, weight_chr);
 
   if (json) {
-    ResponseAppend_P(PSTR(",\"HX711\":{\"" D_JSON_WEIGHT "\":%s%s}"), weight_chr, scount);
+    ResponseAppend_P(PSTR(",\"HX711\":{\"" D_JSON_WEIGHT "\":%s%s, \"" D_JSON_WEIGHT_RAW "\":%d}"), weight_chr, scount, Hx.raw);
 #ifdef USE_WEBSERVER
   } else {
     WSContentSend_PD(HTTP_HX711_WEIGHT, weight_chr);

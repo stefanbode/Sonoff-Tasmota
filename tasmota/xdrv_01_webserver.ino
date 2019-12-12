@@ -130,7 +130,7 @@ const char HTTP_SCRIPT_ROOT[] PROGMEM =
       "clearTimeout(lt);"
       "rfsh=0;"
     "}"
-  "}"
+  "}";
 #else  // USE_SCRIPT_WEB_DISPLAY
   "function la(p){"
     "var a='';"
@@ -149,21 +149,19 @@ const char HTTP_SCRIPT_ROOT[] PROGMEM =
     "x.open('GET','.?m=1'+a,true);"       // ?m related to WebServer->hasArg("m")
     "x.send();"
     "lt=setTimeout(la,%d);"               // Settings.web_refresh
-  "}"
+  "}";
 #endif  // USE_SCRIPT_WEB_DISPLAY
 
-#ifdef USE_JAVASCRIPT_ES6
-  "lb=(v,p)=>la(`&${v}=${p}`);"
-  "lc=(v,i,p)=>la(`&${v}${i}=${p}`);"
-#else
-  "function lb(v,p){"
-    "la('&'+v+'='+p);"
-  "}"
+const char HTTP_SCRIPT_ROOT_PART2[] PROGMEM =
   "function lc(v,i,p){"
+    "if(eb('s')){"                        // Check if Saturation is in DOM otherwise javascript fails on la()
+      "if(v=='h'||v=='d'){"               // Hue or Brightness changed so change Saturation colors too
+        "var sl=eb('sl4').value;"
+        "eb('s').style.background='linear-gradient(to right,rgb('+sl+'%%,'+sl+'%%,'+sl+'%%),hsl('+eb('sl2').value+',100%%,50%%))';"
+      "}"
+    "}"
     "la('&'+v+i+'='+p);"
   "}"
-#endif  // USE_JAVASCRIPT_ES6
-
   "wl(la);";
 
 const char HTTP_SCRIPT_WIFI[] PROGMEM =
@@ -341,6 +339,7 @@ const char HTTP_HEAD_STYLE1[] PROGMEM =
   "p{margin:0.5em 0;}"
   "input{width:100%%;box-sizing:border-box;-webkit-box-sizing:border-box;-moz-box-sizing:border-box;background:#%06x;color:#%06x;}"  // COLOR_INPUT, COLOR_INPUT_TEXT
   "input[type=checkbox],input[type=radio]{width:1em;margin-right:6px;vertical-align:-1px;}"
+  "input[type=range]{width:99%%;}"
   "select{width:100%%;background:#%06x;color:#%06x;}"  // COLOR_INPUT, COLOR_INPUT_TEXT
   "textarea{resize:none;width:98%%;height:318px;padding:5px;overflow:auto;background:#%06x;color:#%06x;}"  // COLOR_CONSOLE, COLOR_CONSOLE_TEXT
   "body{text-align:center;font-family:verdana,sans-serif;background:#%06x;}"  // COLOR_BACKGROUND
@@ -352,9 +351,10 @@ const char HTTP_HEAD_STYLE2[] PROGMEM =
   ".bred:hover{background:#%06x;}"  // COLOR_BUTTON_RESET_HOVER
   ".bgrn{background:#%06x;}"  // COLOR_BUTTON_SAVE
   ".bgrn:hover{background:#%06x;}"  // COLOR_BUTTON_SAVE_HOVER
-  "a{text-decoration:none;}"
+  "a{color:#%06x;text-decoration:none;}"  // COLOR_BUTTON
   ".p{float:left;text-align:left;}"
-  ".q{float:right;text-align:right;}";
+  ".q{float:right;text-align:right;}"
+  ".r{border-radius:0.3em;padding:2px;margin:6px 2px;}";
 const char HTTP_HEAD_STYLE3[] PROGMEM =
   "</style>"
 
@@ -372,12 +372,14 @@ const char HTTP_HEAD_STYLE3[] PROGMEM =
 #endif
   "<h2>%s</h2>";
 
-const char HTTP_MSG_SLIDER1[] PROGMEM =
-  "<div><span class='p'>%s</span><span class='q'>%s</span></div>"
-  "<div><input type='range' min='%d' max='%d' value='%d' onchange='lb(\"%c\", value)'></div>";
-const char HTTP_MSG_SLIDER2[] PROGMEM =
-  "<div><span class='p'>%s</span><span class='q'>%s</span></div>"
-  "<div><input type='range' min='%d' max='%d' value='%d' onchange='lc(\"%c\", %d, value)'></div>";
+const char HTTP_MSG_SLIDER_GRADIENT[] PROGMEM =
+  "<div id='%s' class='r' style='background-image:linear-gradient(to right,%s,%s);'>"
+  "<input id='sl%d' type='range' min='%d' max='%d' value='%d' onchange='lc(\"%c\",%d,value)'>"
+  "</div>";
+const char HTTP_MSG_SLIDER_SHUTTER[] PROGMEM =
+  "<div><span class='p'>" D_CLOSE "</span><span class='q'>" D_OPEN "</span></div>"
+  "<div><input type='range' min='0' max='100' value='%d' onchange='lc(\"u\",%d,value)'></div>";
+
 const char HTTP_MSG_RSTRT[] PROGMEM =
   "<br><div style='text-align:center;'>" D_DEVICE_WILL_RESTART "</div><br>";
 
@@ -412,7 +414,8 @@ const char HTTP_FORM_WIFI[] PROGMEM =
   "<p><b>" D_AP1_PASSWORD "</b><input type='checkbox' onclick='sp(\"p1\")'><br><input id='p1' type='password' placeholder='" D_AP1_PASSWORD "' value='" D_ASTERISK_PWD "'></p>"
   "<p><b>" D_AP2_SSID "</b> (" STA_SSID2 ")<br><input id='s2' placeholder='" STA_SSID2 "' value='%s'></p>"
   "<p><b>" D_AP2_PASSWORD "</b><input type='checkbox' onclick='sp(\"p2\")'><br><input id='p2' type='password' placeholder='" D_AP2_PASSWORD "' value='" D_ASTERISK_PWD "'></p>"
-  "<p><b>" D_HOSTNAME "</b> (%s)<br><input id='h' placeholder='%s' value='%s'></p>";
+  "<p><b>" D_HOSTNAME "</b> (%s)<br><input id='h' placeholder='%s' value='%s'></p>"
+  "<p><b>" D_CORS_DOMAIN "</b><input id='c' placeholder='" CORS_DOMAIN "' value='%s'></p>";
 
 const char HTTP_FORM_LOG1[] PROGMEM =
   "<fieldset><legend><b>&nbsp;" D_LOGGING_PARAMETERS "&nbsp;</b>"
@@ -614,10 +617,12 @@ void WifiManagerBegin(bool reset_only)
 {
   // setup AP
   if (!global_state.wifi_down) {
-    WiFi.mode(WIFI_AP_STA);
+//    WiFi.mode(WIFI_AP_STA);
+    WifiSetMode(WIFI_AP_STA);
     AddLog_P(LOG_LEVEL_DEBUG, PSTR(D_LOG_WIFI D_WIFIMANAGER_SET_ACCESSPOINT_AND_STATION));
   } else {
-    WiFi.mode(WIFI_AP);
+//    WiFi.mode(WIFI_AP);
+    WifiSetMode(WIFI_AP);
     AddLog_P(LOG_LEVEL_DEBUG, PSTR(D_LOG_WIFI D_WIFIMANAGER_SET_ACCESSPOINT));
   }
 
@@ -669,8 +674,8 @@ bool HttpCheckPriviledgedAccess(bool autorequestauth = true)
 
 void HttpHeaderCors(void)
 {
-  if (Settings.flag3.cors_enabled) {  // SetOption73 - Enable HTTP CORS
-    WebServer->sendHeader(F("Access-Control-Allow-Origin"), F("*"));
+  if (Settings.cors_domain[0] != 0) {
+    WebServer->sendHeader(F("Access-Control-Allow-Origin"), Settings.cors_domain);
   }
 }
 
@@ -728,7 +733,7 @@ void _WSContentSend(const String& content)        // Low level sendContent for a
   DEBUG_CORE_LOG(PSTR("WEB: Chunk size %d"), len);
 }
 
-void WSContentFlush()
+void WSContentFlush(void)
 {
   if (Web.chunk_buffer.length() > 0) {
     _WSContentSend(Web.chunk_buffer);                  // Flush chunk buffer
@@ -764,8 +769,15 @@ void WSContentSend_P(const char* formatP, ...)     // Content send snprintf_P ch
   // This uses char strings. Be aware of sending %% if % is needed
   va_list arg;
   va_start(arg, formatP);
-  vsnprintf_P(mqtt_data, sizeof(mqtt_data), formatP, arg);
+  int len = vsnprintf_P(mqtt_data, sizeof(mqtt_data), formatP, arg);
   va_end(arg);
+
+#ifdef DEBUG_TASMOTA_CORE
+  if (len > (sizeof(mqtt_data) -1)) {
+    mqtt_data[33] = '\0';
+    DEBUG_CORE_LOG(PSTR("ERROR: WSContentSend_P size %d > mqtt_data size %d. Start of data [%s...]"), len, sizeof(mqtt_data), mqtt_data);
+  }
+#endif
 
   _WSContentSendBuffer();
 }
@@ -777,6 +789,13 @@ void WSContentSend_PD(const char* formatP, ...)    // Content send snprintf_P ch
   va_start(arg, formatP);
   int len = vsnprintf_P(mqtt_data, sizeof(mqtt_data), formatP, arg);
   va_end(arg);
+
+#ifdef DEBUG_TASMOTA_CORE
+  if (len > (sizeof(mqtt_data) -1)) {
+    mqtt_data[33] = '\0';
+    DEBUG_CORE_LOG(PSTR("ERROR: WSContentSend_PD size %d > mqtt_data size %d. Start of data [%s...]"), len, sizeof(mqtt_data), mqtt_data);
+  }
+#endif
 
   if (D_DECIMAL_SEPARATOR[0] != '.') {
     for (uint32_t i = 0; i < len; i++) {
@@ -818,14 +837,25 @@ void WSContentSendStyle_P(const char* formatP, ...)
   }
   WSContentSend_P(HTTP_HEAD_LAST_SCRIPT);
 
-  WSContentSend_P(HTTP_HEAD_STYLE1, WebColor(COL_FORM), WebColor(COL_INPUT), WebColor(COL_INPUT_TEXT), WebColor(COL_INPUT), WebColor(COL_INPUT_TEXT), WebColor(COL_CONSOLE), WebColor(COL_CONSOLE_TEXT), WebColor(COL_BACKGROUND));
-  WSContentSend_P(HTTP_HEAD_STYLE2, WebColor(COL_BUTTON), WebColor(COL_BUTTON_TEXT), WebColor(COL_BUTTON_HOVER), WebColor(COL_BUTTON_RESET), WebColor(COL_BUTTON_RESET_HOVER), WebColor(COL_BUTTON_SAVE), WebColor(COL_BUTTON_SAVE_HOVER));
+  WSContentSend_P(HTTP_HEAD_STYLE1, WebColor(COL_FORM), WebColor(COL_INPUT), WebColor(COL_INPUT_TEXT), WebColor(COL_INPUT),
+                  WebColor(COL_INPUT_TEXT), WebColor(COL_CONSOLE), WebColor(COL_CONSOLE_TEXT), WebColor(COL_BACKGROUND));
+  WSContentSend_P(HTTP_HEAD_STYLE2, WebColor(COL_BUTTON), WebColor(COL_BUTTON_TEXT), WebColor(COL_BUTTON_HOVER),
+                  WebColor(COL_BUTTON_RESET), WebColor(COL_BUTTON_RESET_HOVER), WebColor(COL_BUTTON_SAVE), WebColor(COL_BUTTON_SAVE_HOVER),
+                  WebColor(COL_BUTTON));
   if (formatP != nullptr) {
     // This uses char strings. Be aware of sending %% if % is needed
     va_list arg;
     va_start(arg, formatP);
-    vsnprintf_P(mqtt_data, sizeof(mqtt_data), formatP, arg);
+    int len = vsnprintf_P(mqtt_data, sizeof(mqtt_data), formatP, arg);
     va_end(arg);
+
+#ifdef DEBUG_TASMOTA_CORE
+  if (len > (sizeof(mqtt_data) -1)) {
+    mqtt_data[33] = '\0';
+    DEBUG_CORE_LOG(PSTR("ERROR: WSContentSendStyle_P size %d > mqtt_data size %d. Start of data [%s...]"), len, sizeof(mqtt_data), mqtt_data);
+  }
+#endif
+
     _WSContentSendBuffer();
   }
   WSContentSend_P(HTTP_HEAD_STYLE3, WebColor(COL_TEXT),
@@ -977,7 +1007,7 @@ void HandleRoot(void)
 
   AddLog_P(LOG_LEVEL_DEBUG, S_LOG_HTTP, S_MAIN_MENU);
 
-  char stemp[5];
+  char stemp[10];
 
   WSContentStart_P(S_MAIN_MENU);
 #ifdef USE_SCRIPT_WEB_DISPLAY
@@ -985,37 +1015,83 @@ void HandleRoot(void)
 #else
   WSContentSend_P(HTTP_SCRIPT_ROOT, Settings.web_refresh);
 #endif
+  WSContentSend_P(HTTP_SCRIPT_ROOT_PART2);
+
   WSContentSendStyle();
 
   WSContentSend_P(PSTR("<div id='l1' name='l1'></div>"));
   if (devices_present) {
 #ifdef USE_LIGHT
     if (light_type) {
+      uint8_t light_subtype = light_type &7;
       if (!Settings.flag3.pwm_multi_channels) {  // SetOption68 0 - Enable multi-channels PWM instead of Color PWM
-        if ((LST_COLDWARM == (light_type &7)) || (LST_RGBWC == (light_type &7))) {
-          // Cold - Warm &t related to lb("t", value) and WebGetArg("t", tmp, sizeof(tmp));
-          WSContentSend_P(HTTP_MSG_SLIDER1, F(D_COLDLIGHT), F(D_WARMLIGHT),
-            153, 500, LightGetColorTemp(), 't');
+        if ((LST_COLDWARM == light_subtype) || (LST_RGBWC == light_subtype)) {
+
+          WSContentSend_P(HTTP_MSG_SLIDER_GRADIENT,  // Cold Warm
+            "a",             // a - Unique HTML id
+            "#fff", "#ff0",  // White to Yellow
+            1,               // sl1
+            153, 500,        // Range color temperature
+            LightGetColorTemp(),
+            't', 0);         // t0 - Value id releated to lc("t0", value) and WebGetArg("t0", tmp, sizeof(tmp));
         }
-        // Dark - Bright &d related to lb("d", value) and WebGetArg("d", tmp, sizeof(tmp));
-        WSContentSend_P(HTTP_MSG_SLIDER1, F(D_DARKLIGHT), F(D_BRIGHTLIGHT),
-          1, 100, Settings.light_dimmer, 'd');
+        if (light_subtype > 2) {
+          uint16_t hue;
+          uint8_t sat;
+          LightGetHSB(&hue, &sat, nullptr);
+
+          WSContentSend_P(HTTP_MSG_SLIDER_GRADIENT,  // Hue
+            "b",             // b - Unique HTML id
+            "#800", "#f00 5%,#ff0 20%,#0f0 35%,#0ff 50%,#00f 65%,#f0f 80%,#f00 95%,#800",  // Hue colors
+            2,               // sl2 - Unique range HTML id - Used as source for Saturation end color
+            1, 359,          // Range valid Hue
+            hue,
+            'h', 0);         // h0 - Value id
+
+          uint8_t dcolor = changeUIntScale(Settings.light_dimmer, 0, 100, 0, 255);
+          char scolor[8];
+          snprintf_P(scolor, sizeof(scolor), PSTR("#%02X%02X%02X"), dcolor, dcolor, dcolor);  // Saturation start color from Black to White
+          uint8_t red, green, blue;
+          LightHsToRgb(hue, 255, &red, &green, &blue);
+          snprintf_P(stemp, sizeof(stemp), PSTR("#%02X%02X%02X"), red, green, blue);  // Saturation end color
+
+          WSContentSend_P(HTTP_MSG_SLIDER_GRADIENT,  // Saturation
+            "s",             // s - Unique HTML id related to eb('s').style.background='linear-gradient(to right,rgb('+sl+'%%,'+sl+'%%,'+sl+'%%),hsl('+eb('sl2').value+',100%%,50%%))';
+            scolor, stemp,   // Brightness to max current color
+            3,               // sl3 - Unique range HTML id - Not used
+            0, 100,          // Range 0 to 100%
+            changeUIntScale(sat, 0, 255, 0, 100),
+            'n', 0);         // n0 - Value id
+        }
+
+        WSContentSend_P(HTTP_MSG_SLIDER_GRADIENT,  // Brightness - Black to White
+          "c",               // c - Unique HTML id
+          "#000", "#fff",    // Black to White
+          4,                 // sl4 - Unique range HTML id - Used as source for Saturation begin color
+          Settings.flag3.slider_dimmer_stay_on, 100,  // Range 0/1 to 100%
+          Settings.light_dimmer,
+          'd', 0);           // d0 - Value id is related to lc("d0", value) and WebGetArg("d0", tmp, sizeof(tmp));
       } else {  // Settings.flag3.pwm_multi_channels - SetOption68 1 - Enable multi-channels PWM instead of Color PWM
-        uint32_t pwm_channels = (light_type & 7) > LST_MAX ? LST_MAX : (light_type & 7);
+        uint32_t pwm_channels = light_subtype > LST_MAX ? LST_MAX : light_subtype;
+        stemp[0] = 'e'; stemp[1] = '0'; stemp[2] = '\0';  // d0
         for (uint32_t i = 0; i < pwm_channels; i++) {
-          snprintf_P(stemp, sizeof(stemp), PSTR("c%d"), i);
-          WSContentSend_P(HTTP_MSG_SLIDER2, stemp, FPSTR("100%"),
-            1, 100,
-            changeUIntScale(Settings.light_color[i], 0, 255, 0, 100), 'd', i+1);
+          stemp[1]++;        // e1 to e5 - Make unique ids
+
+          WSContentSend_P(HTTP_MSG_SLIDER_GRADIENT,  // Channel brightness - Black to White
+            stemp,           // e1 to e5 - Unique HTML id
+            "#000", "#fff",  // Black to White
+            i+1,             // sl1 to sl5 - Unique range HTML id - Not used
+            1, 100,          // Range 1 to 100%
+            changeUIntScale(Settings.light_color[i], 0, 255, 0, 100),
+            'e', i+1);       // e1 to e5 - Value id
         }
       }  // Settings.flag3.pwm_multi_channels
     }
-#endif
+#endif // USE_LIGHT
 #ifdef USE_SHUTTER
     if (Settings.flag3.shutter_mode) {  // SetOption80 - Enable shutter support
       for (uint32_t i = 0; i < shutters_present; i++) {
-        WSContentSend_P(HTTP_MSG_SLIDER2, F(D_CLOSE), F(D_OPEN),
-          0, 100, Settings.shutter_position[i], 'u', i+1);
+        WSContentSend_P(HTTP_MSG_SLIDER_SHUTTER, Settings.shutter_position[i], i+1);
       }
     }
 #endif  // USE_SHUTTER
@@ -1031,6 +1107,21 @@ void HandleRoot(void)
     } else {
 #endif  // USE_SONOFF_IFAN
       for (uint32_t idx = 1; idx <= devices_present; idx++) {
+#ifdef USE_SHUTTER
+        if (Settings.flag3.shutter_mode) {  // SetOption80 - Enable shutter support
+          bool shutter_used = false;
+          for (uint32_t i = 0; i < MAX_SHUTTERS; i++) {
+            if (Settings.shutter_startrelay[i] == (((idx -1) & 0xFFFFFFFE) +1)) {
+              shutter_used = true;
+              break;
+            }
+          }
+          if (shutter_used) {
+            WSContentSend_P(HTTP_DEVICE_CONTROL, 100 / devices_present, idx, (idx % 2) ? "▲" : "▼" , "");
+            continue;
+          }
+        }
+#endif  // USE_SHUTTER
         snprintf_P(stemp, sizeof(stemp), PSTR(" %d"), idx);
         WSContentSend_P(HTTP_DEVICE_CONTROL, 100 / devices_present, idx, (devices_present < 5) ? D_BUTTON_TOGGLE : "", (devices_present > 1) ? stemp : "");
       }
@@ -1112,23 +1203,33 @@ bool HandleRootStatusRefresh(void)
     }
 #endif  // USE_SONOFF_IFAN
   }
-  WebGetArg("d", tmp, sizeof(tmp));  // 0 - 100 Dimmer value
+  WebGetArg("d0", tmp, sizeof(tmp));  // 0 - 100 Dimmer value
   if (strlen(tmp)) {
     snprintf_P(svalue, sizeof(svalue), PSTR(D_CMND_DIMMER " %s"), tmp);
     ExecuteWebCommand(svalue, SRC_WEBGUI);
   }
   uint32_t pwm_channels = (light_type & 7) > LST_MAX ? LST_MAX : (light_type & 7);
   for (uint32_t j = 1; j <= pwm_channels; j++) {
-    snprintf_P(webindex, sizeof(webindex), PSTR("d%d"), j);
+    snprintf_P(webindex, sizeof(webindex), PSTR("e%d"), j);
     WebGetArg(webindex, tmp, sizeof(tmp));  // 0 - 100 percent
     if (strlen(tmp)) {
       snprintf_P(svalue, sizeof(svalue), PSTR(D_CMND_CHANNEL "%d %s"), j, tmp);
       ExecuteWebCommand(svalue, SRC_WEBGUI);
     }
   }
-  WebGetArg("t", tmp, sizeof(tmp));  // 153 - 500 Color temperature
+  WebGetArg("t0", tmp, sizeof(tmp));  // 153 - 500 Color temperature
   if (strlen(tmp)) {
     snprintf_P(svalue, sizeof(svalue), PSTR(D_CMND_COLORTEMPERATURE " %s"), tmp);
+    ExecuteWebCommand(svalue, SRC_WEBGUI);
+  }
+  WebGetArg("h0", tmp, sizeof(tmp));  // 0 - 359 Hue value
+  if (strlen(tmp)) {
+    snprintf_P(svalue, sizeof(svalue), PSTR(D_CMND_HSBCOLOR  "1 %s"), tmp);
+    ExecuteWebCommand(svalue, SRC_WEBGUI);
+  }
+  WebGetArg("n0", tmp, sizeof(tmp));  // 0 - 99 Saturation value
+  if (strlen(tmp)) {
+    snprintf_P(svalue, sizeof(svalue), PSTR(D_CMND_HSBCOLOR  "2 %s"), tmp);
     ExecuteWebCommand(svalue, SRC_WEBGUI);
   }
 #ifdef USE_SHUTTER
@@ -1553,11 +1654,11 @@ void HandleWifiConfiguration(void)
           int quality = WifiGetRssiAsQuality(WiFi.RSSI(indices[i]));
           int auth = WiFi.encryptionType(indices[i]);
           char encryption[20];
-          WSContentSend_P(PSTR("<div><a href='#p' onclick='c(this)'>%s</a>&nbsp;(%d)&nbsp<span class='q'>%s %d%%</span></div>"),
+          WSContentSend_P(PSTR("<div><a href='#p' onclick='c(this)'>%s</a>&nbsp;(%d)&nbsp<span class='q'>%s %d%% (%d dBm)</span></div>"),
             HtmlEscape(WiFi.SSID(indices[i])).c_str(),
             WiFi.channel(indices[i]),
             GetTextIndexed(encryption, sizeof(encryption), auth +1, kEncryptionType),
-            quality
+            quality, WiFi.RSSI()
           );
           delay(0);
 
@@ -1569,7 +1670,7 @@ void HandleWifiConfiguration(void)
     }
 
     // As WIFI_HOSTNAME may contain %s-%04d it cannot be part of HTTP_FORM_WIFI where it will exception
-    WSContentSend_P(HTTP_FORM_WIFI, Settings.sta_ssid[0], Settings.sta_ssid[1], WIFI_HOSTNAME, WIFI_HOSTNAME, Settings.hostname);
+    WSContentSend_P(HTTP_FORM_WIFI, Settings.sta_ssid[0], Settings.sta_ssid[1], WIFI_HOSTNAME, WIFI_HOSTNAME, Settings.hostname, Settings.cors_domain);
     WSContentSend_P(HTTP_FORM_END);
   }
 
@@ -1593,6 +1694,8 @@ void WifiSaveSettings(void)
   if (strstr(Settings.hostname, "%") != nullptr) {
     strlcpy(Settings.hostname, WIFI_HOSTNAME, sizeof(Settings.hostname));
   }
+  WebGetArg("c", tmp, sizeof(tmp));
+  strlcpy(Settings.cors_domain, (!strlen(tmp)) ? CORS_DOMAIN : tmp, sizeof(Settings.cors_domain));
   WebGetArg("s1", tmp, sizeof(tmp));
   strlcpy(Settings.sta_ssid[0], (!strlen(tmp)) ? STA_SSID1 : tmp, sizeof(Settings.sta_ssid[0]));
   WebGetArg("s2", tmp, sizeof(tmp));
@@ -1601,7 +1704,7 @@ void WifiSaveSettings(void)
   strlcpy(Settings.sta_pwd[0], (!strlen(tmp)) ? "" : (strlen(tmp) < 5) ? Settings.sta_pwd[0] : tmp, sizeof(Settings.sta_pwd[0]));
   WebGetArg("p2", tmp, sizeof(tmp));
   strlcpy(Settings.sta_pwd[1], (!strlen(tmp)) ? "" : (strlen(tmp) < 5) ? Settings.sta_pwd[1] : tmp, sizeof(Settings.sta_pwd[1]));
-  AddLog_P2(LOG_LEVEL_INFO, PSTR(D_LOG_WIFI D_CMND_HOSTNAME " %s, " D_CMND_SSID "1 %s, " D_CMND_SSID "2 %s"), Settings.hostname, Settings.sta_ssid[0], Settings.sta_ssid[1]);
+  AddLog_P2(LOG_LEVEL_INFO, PSTR(D_LOG_WIFI D_CMND_HOSTNAME " %s, " D_CMND_SSID "1 %s, " D_CMND_SSID "2 %s, " D_CMND_CORS " %s"), Settings.hostname, Settings.sta_ssid[0], Settings.sta_ssid[1], Settings.cors_domain);
 }
 
 /*-------------------------------------------------------------------------------------------*/
@@ -1885,7 +1988,7 @@ void HandleInformation(void)
     WSContentSend_P(PSTR("}1" D_FRIENDLY_NAME " %d}2%s"), i +1, Settings.friendlyname[i]);
   }
   WSContentSend_P(PSTR("}1}2&nbsp;"));  // Empty line
-  WSContentSend_P(PSTR("}1" D_AP "%d " D_SSID " (" D_RSSI ")}2%s (%d%%)"), Settings.sta_active +1, Settings.sta_ssid[Settings.sta_active], WifiGetRssiAsQuality(WiFi.RSSI()));
+  WSContentSend_P(PSTR("}1" D_AP "%d " D_SSID " (" D_RSSI ")}2%s (%d%%, %d dBm)"), Settings.sta_active +1, Settings.sta_ssid[Settings.sta_active], WifiGetRssiAsQuality(WiFi.RSSI()), WiFi.RSSI());
   WSContentSend_P(PSTR("}1" D_HOSTNAME "}2%s%s"), my_hostname, (Wifi.mdns_begun) ? ".local" : "");
   if (static_cast<uint32_t>(WiFi.localIP()) != 0) {
     WSContentSend_P(PSTR("}1" D_IP_ADDRESS "}2%s"), WiFi.localIP().toString().c_str());
@@ -2578,10 +2681,10 @@ extern uint8_t tasm_cmd_activ;
 
 bool JsonWebColor(const char* dataBuf)
 {
-  // Default (light)
-  // {"WebColor":["#000000","#ffffff","#f2f2f2","#000000","#ffffff","#000000","#ffffff","#ff0000","#008000","#ffffff","#1fa3ec","#0e70a4","#d43535","#931f1f","#47c266","#5aaf6f","#ffffff","#999999","#000000"]}
-  // Alternative (Dark)
-  // {"Webcolor":["#eeeeee","#181818","#4f4f4f","#000000","#dddddd","#6a9955","#1e1e1e","#ff0000","#008000","#ffffff","#1fa3ec","#0e70a4","#d43535","#931f1f","#47c266","#5aaf6f","#ffffff","#999999","#eeeeee"]}
+  // Default (Dark theme)
+  // {"WebColor":["#eaeaea","#252525","#4f4f4f","#000","#ddd","#65c115","#1f1f1f","#ff5661","#008000","#faffff","#1fa3ec","#0e70a4","#d43535","#931f1f","#47c266","#5aaf6f","#faffff","#999","#eaeaea"]}
+  // Default pre v7 (Light theme)
+  // {"WebColor":["#000","#fff","#f2f2f2","#000","#fff","#000","#fff","#f00","#008000","#fff","#1fa3ec","#0e70a4","#d43535","#931f1f","#47c266","#5aaf6f","#fff","#999","#000"]}	  // {"WebColor":["#000000","#ffffff","#f2f2f2","#000000","#ffffff","#000000","#ffffff","#ff0000","#008000","#ffffff","#1fa3ec","#0e70a4","#d43535","#931f1f","#47c266","#5aaf6f","#ffffff","#999999","#000000"]}
 
   char dataBufLc[strlen(dataBuf) +1];
   LowerCase(dataBufLc, dataBuf);
@@ -2613,7 +2716,7 @@ const char kWebCommands[] PROGMEM = "|"  // No prefix
 #ifdef USE_SENDMAIL
   D_CMND_SENDMAIL "|"
 #endif
-  D_CMND_WEBSERVER "|" D_CMND_WEBPASSWORD "|" D_CMND_WEBLOG "|" D_CMND_WEBREFRESH "|" D_CMND_WEBSEND "|" D_CMND_WEBCOLOR "|" D_CMND_WEBSENSOR;
+  D_CMND_WEBSERVER "|" D_CMND_WEBPASSWORD "|" D_CMND_WEBLOG "|" D_CMND_WEBREFRESH "|" D_CMND_WEBSEND "|" D_CMND_WEBCOLOR "|" D_CMND_WEBSENSOR "|" D_CMND_CORS;
 
 void (* const WebCommand[])(void) PROGMEM = {
 #ifdef USE_EMULATION
@@ -2622,7 +2725,7 @@ void (* const WebCommand[])(void) PROGMEM = {
 #ifdef USE_SENDMAIL
   &CmndSendmail,
 #endif
-  &CmndWebServer, &CmndWebPassword, &CmndWeblog, &CmndWebRefresh, &CmndWebSend, &CmndWebColor, &CmndWebSensor };
+  &CmndWebServer, &CmndWebPassword, &CmndWeblog, &CmndWebRefresh, &CmndWebSend, &CmndWebColor, &CmndWebSensor, &CmndCors };
 
 /*********************************************************************************************\
  * Commands
@@ -2741,6 +2844,14 @@ void CmndWebSensor(void)
   Response_P(PSTR("{\"" D_CMND_WEBSENSOR "\":"));
   XsnsSensorState();
   ResponseJsonEnd();
+}
+
+void CmndCors(void)
+{
+  if ((XdrvMailbox.data_len > 0) && (XdrvMailbox.data_len < sizeof(Settings.cors_domain))) {
+    strlcpy(Settings.cors_domain, (SC_CLEAR == Shortcut()) ? "" : (SC_DEFAULT == Shortcut()) ? WEB_PASSWORD : XdrvMailbox.data, sizeof(Settings.cors_domain));
+  }
+  ResponseCmndChar(Settings.cors_domain);
 }
 
 /*********************************************************************************************\
