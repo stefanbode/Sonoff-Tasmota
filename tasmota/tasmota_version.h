@@ -22,7 +22,7 @@
 
 const uint32_t VERSION = 0x07010204;
 //STB mod
-#define STB_VERSION         0x0116
+#define STB_VERSION         0x0117
 //end
 
 #endif  // _TASMOTA_VERSION_H_
