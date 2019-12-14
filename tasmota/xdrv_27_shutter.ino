@@ -246,7 +246,7 @@ void ShutterUpdatePosition(void)
       }
 
       if (Shutter.mode == SHT_OFF_ON__OPEN_CLOSE && pin[GPIO_PWM1+i] < 99) {
-        uint16_t freq_change = Shutter.max_pwm_frequency/Shutter.motordelay[i];
+        uint16_t freq_change = Shutter.max_pwm_frequency/(Shutter.motordelay[i]+1);
         // ramp up phase. calculate frequency
         Shutter.pwm_frequency = tmin(freq_change * Shutter.time[i],Shutter.max_pwm_frequency);
         // ramp down at the end of the movement time will not be exactly motordelay
@@ -273,10 +273,9 @@ void ShutterUpdatePosition(void)
             // Only allow PWM microstepping if PWM and COUNTER are defined.
             // see wiki to connect PWM and COUNTER
             if (pin[GPIO_PWM1+i] < 99 && pin[GPIO_CNTR1+i] < 99 ) {
-              char stemp2[10];
               int16_t missing_steps = ((Shutter.target_position[i]-Shutter.start_position[i])*Shutter.direction[i]*Shutter.max_pwm_frequency/2000) - RtcSettings.pulse_counter[i];
               //prepare for stop PWM
-              AddLog_P2(LOG_LEVEL_DEBUG, PSTR("SHT: Remain steps %d, counter %d, act. real %d, freq %d"), missing_steps, RtcSettings.pulse_counter[i] ,Shutter.real_position[i],Shutter.pwm_frequency);
+              AddLog_P2(LOG_LEVEL_DEBUG, PSTR("SHT: Remain steps %d, counter %d, freq %d"), missing_steps, RtcSettings.pulse_counter[i] ,Shutter.pwm_frequency);
               Shutter.pwm_frequency = 0;
               analogWriteFreq(Shutter.pwm_frequency);
               while (RtcSettings.pulse_counter[i] < (uint32_t)(Shutter.target_position[i]-Shutter.start_position[i])*Shutter.direction[i]*Shutter.max_pwm_frequency/2000) {
@@ -284,9 +283,7 @@ void ShutterUpdatePosition(void)
               }
               analogWrite(pin[GPIO_PWM1+i], 0);
               Shutter.real_position[i] = ((int32_t)RtcSettings.pulse_counter[i]*Shutter.direction[i]*2000 / Shutter.max_pwm_frequency)+Shutter.start_position[i];
-
-              dtostrfd((float)Shutter.time[i] / 20, 2, stemp2);
-              AddLog_P2(LOG_LEVEL_DEBUG, PSTR("SHT:Real %d, pulsecount %d, start %d, time %s"), Shutter.real_position[i],RtcSettings.pulse_counter[i], Shutter.start_position[i],stemp2);
+              AddLog_P2(LOG_LEVEL_DEBUG, PSTR("SHT:Real %d, pulsecount %d, start %d"), Shutter.real_position[i],RtcSettings.pulse_counter[i], Shutter.start_position[i]);
 
             }
             if ((1 << (Settings.shutter_startrelay[i]-1)) & power) {
@@ -337,12 +334,9 @@ bool ShutterState(uint8_t device)
 void ShutterStartInit(uint8_t index, int8_t direction, int32_t target_pos)
 {
   //AddLog_P2(LOG_LEVEL_DEBUG, PSTR("SHT: dir %d, delta1 %d, delta2 %d, grant %d"),direction, (Shutter.open_max[index] - Shutter.real_position[index]) / Shutter.close_velocity[index], Shutter.real_position[index] / Shutter.close_velocity[index], 2+Shutter.motordelay[index]);
-  if (direction == 1 && (Shutter.open_max[index] - Shutter.real_position[index]) / Shutter.close_velocity[index] <= 2+Shutter.motordelay[index]) {
-    // shutter alread 100% cannot move further
+  if (  ( direction ==  1 && (Shutter.open_max[index] - Shutter.real_position[index]) / 100 <= 2 )
+     || ( direction == -1 && Shutter.real_position[index] / Shutter.close_velocity[index]   <= 2)) {   
     Shutter.skip_relay_change = 1 ;
-  } else if (direction == -1 && Shutter.real_position[index] / Shutter.close_velocity[index] <= 2+Shutter.motordelay[index]) {
-    // shutter already at 0% connot move into minus
-    Shutter.skip_relay_change =  1;
   } else {
     if (pin[GPIO_PWM1+index] < 99) {
       Shutter.pwm_frequency = 0;
