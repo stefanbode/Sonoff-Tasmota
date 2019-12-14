@@ -371,10 +371,15 @@ void ShutterReportPosition(void)
     if (Shutter.direction[i] != 0) {
       char stemp1[20];
       char stemp2[10];
+      uint8_t position =  ShutterRealToPercentPosition(Shutter.real_position[i], i);
       dtostrfd((float)Shutter.time[i] / 20, 2, stemp2);
       shutter_moving = 1;
       //Settings.shutter_position[i] = Settings.shuttercoeff[2][i] * 5 > Shutter.real_position[i] ? Shutter.real_position[i] / Settings.shuttercoeff[2][i] : (Shutter.real_position[i]-Settings.shuttercoeff[0,i]) / Settings.shuttercoeff[1][i];
       AddLog_P2(LOG_LEVEL_INFO, PSTR("SHT: Shutter %d: Real: %d, Tar %d, src: %s, start: %d %%, dir: %d, motordelay %d, rtc: %s  [s], freq %d"), i+1,Shutter.real_position[i], Shutter.target_position[i], GetTextIndexed(stemp1, sizeof(stemp1), last_source, kCommandSource), Settings.shutter_position[i], Shutter.direction[i], Shutter.motordelay[i], stemp2, Shutter.pwm_frequency );
+      Response_P(PSTR("{"));
+      ResponseAppend_P(JSON_SHUTTER_POS, i+1, position, Shutter.direction[i]);
+      ResponseJsonEnd();
+      MqttPublishPrefixTopic_P(RESULT_OR_TELE, mqtt_data);
     }
   }
   if (rules_flag.shutter_moving > shutter_moving) {
