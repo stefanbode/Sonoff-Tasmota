@@ -46,6 +46,7 @@ void (* const ShutterCommand[])(void) PROGMEM = {
   &CmndShutterFrequency};
 
 const char JSON_SHUTTER_POS[] PROGMEM = "\"" D_PRFX_SHUTTER "%d\":{\"Position\":%d,\"direction\":%d}";
+const char MSG_SHUTTER_POS[] PROGMEM = "SHT: " D_PRFX_SHUTTER " %d: Real. %d, Start: %d, Stop: %d, dir %d, motordelay %d, rtc: %s [s], freq %d";
 
 #include <Ticker.h>
 
@@ -212,7 +213,7 @@ void ShutterInit(void)
       dtostrfd((float)Shutter.open_time[i] / 10 , 1, shutter_open_chr);
       char shutter_close_chr[10];
       dtostrfd((float)Shutter.close_time[i] / 10, 1, shutter_close_chr);
-      AddLog_P2(LOG_LEVEL_INFO, PSTR("SHT: Shutter %d (Relay:%d): Init. Pos: %d [%d %%], Open Vel.: 100 Close Vel.: %d , Max Way: %d, Opentime %s [s], Closetime %s [s], CoedffCalc: c0: %d, c1 %d, c2: %d, c3: %d, c4: %d, binmask %d, is inverted %d, shuttermode %d,motordelay %d"),
+      AddLog_P2(LOG_LEVEL_INFO, PSTR("SHT: Shutter %d (Relay:%d): Init. Pos: %d [%d %%], Open Vel.: 100 Close Vel.: %d , Max Way: %d, Opentime %s [s], Closetime %s [s], CoeffCalc: c0: %d, c1 %d, c2: %d, c3: %d, c4: %d, binmask %d, is inverted %d, shuttermode %d,motordelay %d"),
         i+1, Settings.shutter_startrelay[i], Shutter.real_position[i], Settings.shutter_position[i], Shutter.close_velocity[i], Shutter.open_max[i], shutter_open_chr, shutter_close_chr,
         Settings.shuttercoeff[0][i], Settings.shuttercoeff[1][i], Settings.shuttercoeff[2][i], Settings.shuttercoeff[3][i], Settings.shuttercoeff[4][i],
         Shutter.mask, Settings.shutter_invert[i], Shutter.mode, Shutter.motordelay[i]);
@@ -220,6 +221,9 @@ void ShutterInit(void)
     } else {
       // terminate loop at first INVALID shutter.
       break;
+    }
+    if (shutters_present < 4) {
+       Shutter.max_pwm_frequency = Settings.shuttercoeff[4][4];
     }
     Settings.shutter_accuracy = 1;
   }
@@ -302,7 +306,7 @@ void ShutterUpdatePosition(void)
         Settings.shutter_position[i] = ShutterRealToPercentPosition(Shutter.real_position[i], i);
 
         dtostrfd((float)Shutter.time[i] / 20, 1, stemp2);
-        AddLog_P2(LOG_LEVEL_DEBUG, PSTR("SHT: Shutter %d: Real. %d, Stop: %ld, relay: %d, dir %d, pulsetimer: %d, motordelay %d, rtc: %s [s], freq %d"), i+1, Shutter.real_position[i], Settings.shutter_position[i], cur_relay -1, Shutter.direction[i], Settings.pulse_timer[cur_relay -1], Shutter.motordelay[i],stemp2,Shutter.pwm_frequency);
+        AddLog_P2(LOG_LEVEL_INFO, MSG_SHUTTER_POS, i+1, Shutter.real_position[i], Shutter.start_position[i], Shutter.target_position[i], Shutter.direction[i], Shutter.motordelay[i],stemp2,Shutter.pwm_frequency);
         Shutter.start_position[i] = Shutter.real_position[i];
 
         // sending MQTT result to broker
@@ -335,7 +339,7 @@ void ShutterStartInit(uint8_t index, int8_t direction, int32_t target_pos)
 {
   //AddLog_P2(LOG_LEVEL_DEBUG, PSTR("SHT: dir %d, delta1 %d, delta2 %d, grant %d"),direction, (Shutter.open_max[index] - Shutter.real_position[index]) / Shutter.close_velocity[index], Shutter.real_position[index] / Shutter.close_velocity[index], 2+Shutter.motordelay[index]);
   if (  ( direction ==  1 && (Shutter.open_max[index] - Shutter.real_position[index]) / 100 <= 2 )
-     || ( direction == -1 && Shutter.real_position[index] / Shutter.close_velocity[index]   <= 2)) {   
+     || ( direction == -1 && Shutter.real_position[index] / Shutter.close_velocity[index]   <= 2)) {
     Shutter.skip_relay_change = 1 ;
   } else {
     if (pin[GPIO_PWM1+index] < 99) {
@@ -375,7 +379,7 @@ void ShutterReportPosition(void)
       dtostrfd((float)Shutter.time[i] / 20, 2, stemp2);
       shutter_moving = 1;
       //Settings.shutter_position[i] = Settings.shuttercoeff[2][i] * 5 > Shutter.real_position[i] ? Shutter.real_position[i] / Settings.shuttercoeff[2][i] : (Shutter.real_position[i]-Settings.shuttercoeff[0,i]) / Settings.shuttercoeff[1][i];
-      AddLog_P2(LOG_LEVEL_INFO, PSTR("SHT: Shutter %d: Real: %d, Tar %d, src: %s, start: %d %%, dir: %d, motordelay %d, rtc: %s  [s], freq %d"), i+1,Shutter.real_position[i], Shutter.target_position[i], GetTextIndexed(stemp1, sizeof(stemp1), last_source, kCommandSource), Settings.shutter_position[i], Shutter.direction[i], Shutter.motordelay[i], stemp2, Shutter.pwm_frequency );
+      AddLog_P2(LOG_LEVEL_INFO, MSG_SHUTTER_POS, i+1, Shutter.real_position[i], Shutter.start_position[i], Shutter.target_position[i], Shutter.direction[i], Shutter.motordelay[i],stemp2,Shutter.pwm_frequency);
       Response_P(PSTR("{"));
       ResponseAppend_P(JSON_SHUTTER_POS, i+1, position, Shutter.direction[i]);
       ResponseJsonEnd();
@@ -610,7 +614,6 @@ void CmndShutterRelay(void)
       } else {
         Shutter.mask ^= 3 << (Settings.shutter_startrelay[XdrvMailbox.index -1] - 1);
       }
-      AddLog_P2(LOG_LEVEL_INFO, PSTR("SHT: Relay %d is %d"), XdrvMailbox.index,  XdrvMailbox.payload);
       Settings.shutter_startrelay[XdrvMailbox.index -1] = XdrvMailbox.payload;
       ShutterInit();
       // if payload is 0 to disable the relay there must be a reboot. Otherwhise does not work
@@ -625,10 +628,8 @@ void CmndShutterSetHalfway(void)
     if ((XdrvMailbox.payload >= 0) && (XdrvMailbox.payload <= 100)) {
       Settings.shutter_set50percent[XdrvMailbox.index -1] = Settings.shutter_invert[XdrvMailbox.index -1] ? 100 - XdrvMailbox.payload : XdrvMailbox.payload;
       ShutterInit();
-      ResponseCmndIdxNumber(XdrvMailbox.payload);  // ????
-    } else {
-      ResponseCmndIdxNumber(Settings.shutter_set50percent[XdrvMailbox.index -1]);
     }
+  ResponseCmndIdxNumber(Settings.shutter_invert[XdrvMailbox.index -1] ? 100 - Settings.shutter_set50percent[XdrvMailbox.index -1] : Settings.shutter_set50percent[XdrvMailbox.index -1]);
   }
 }
 
@@ -636,6 +637,9 @@ void CmndShutterFrequency(void)
 {
   if ((XdrvMailbox.payload >= 0) && (XdrvMailbox.payload <= 10000)) {
     Shutter.max_pwm_frequency =  XdrvMailbox.payload;
+    if (shutters_present < 4) {
+      Settings.shuttercoeff[4][4] = Shutter.max_pwm_frequency;
+    }
     ResponseCmndNumber(XdrvMailbox.payload);  // ????
   } else {
     ResponseCmndNumber(Shutter.max_pwm_frequency);
@@ -664,7 +668,7 @@ void CmndShutterInvert(void)
 
 void CmndShutterCalibration(void)  // ????
 {
-  if ((XdrvMailbox.index > 0) && (XdrvMailbox.index <= MAX_SHUTTERS)) {
+  if ((XdrvMailbox.index > 0) && (XdrvMailbox.index <= shutters_present)) {
     if (XdrvMailbox.data_len > 0) {
         uint32_t i = 0;
         char *str_ptr;
