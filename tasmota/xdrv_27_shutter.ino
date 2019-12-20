@@ -31,9 +31,9 @@ const uint8_t steps_per_second = 20;    // FUNC_EVERY_50_MSECOND
 
 uint8_t calibrate_pos[6] = {0,30,50,70,90,100};
 uint16_t messwerte[5] = {30,50,70,90,100};
+uint16_t last_execute_step;
 
 enum ShutterModes { SHT_OFF_OPEN__OFF_CLOSE, SHT_OFF_ON__OPEN_CLOSE, SHT_PULSE_OPEN__PULSE_CLOSE, SHT_OFF_ON__OPEN_CLOSE_STEPPER,};
-enum ShutterStepperStates { HOLD, RAMP_DOWN, RAMP_UP };
 
 const char kShutterCommands[] PROGMEM = D_PRFX_SHUTTER "|"
   D_CMND_SHUTTER_OPEN "|" D_CMND_SHUTTER_CLOSE "|" D_CMND_SHUTTER_STOP "|" D_CMND_SHUTTER_POSITION  "|"
@@ -73,42 +73,48 @@ struct SHUTTER {
   uint16_t max_pwm_frequency = 1000;      // maximum of PWM frequency for openig the shutter. depend on the motor and drivers
   uint16_t max_close_pwm_frequency[MAX_SHUTTERS];// maximum of PWM frequency for closeing the shutter. depend on the motor and drivers
   uint8_t skip_relay_change;                 // avoid overrun at endstops
-  ShutterStepperStates state[MAX_SHUTTERS]; //
+  int32_t accelerator[MAX_SHUTTERS];         // speed of ramp-up, ramp down of shutter
 } Shutter;
 
 void ShutterRtc50mS(void)
 {
   for (uint32_t i = 0; i < shutters_present; i++) {
     Shutter.time[i]++;
+    if (Shutter.accelerator[i]) {
+      Shutter.pwm_frequency += Shutter.accelerator[i];
+      Shutter.pwm_frequency = tmax(0,tmin(Shutter.direction[i]==1 ? Shutter.max_pwm_frequency : Shutter.max_close_pwm_frequency[i],Shutter.pwm_frequency));
+      analogWriteFreq(Shutter.pwm_frequency);
+      analogWrite(pin[GPIO_PWM1+i], 50);
+    }
   }
 }
 
-int32_t ShutterPercentToRealPosition(uint8_t percent,uint8_t index)
+int32_t ShutterPercentToRealPosition(uint8_t percent,uint8_t i)
 {
-	if (Settings.shutter_set50percent[index] != 50) {
-    return  percent <= 5 ?  Settings.shuttercoeff[2][index] * percent : Settings.shuttercoeff[1][index] * percent + Settings.shuttercoeff[0][index];
+	if (Settings.shutter_set50percent[i] != 50) {
+    return  percent <= 5 ?  Settings.shuttercoeff[2][i] * percent : Settings.shuttercoeff[1][i] * percent + Settings.shuttercoeff[0][i];
 	} else {
     int32_t realpos;
     // check against DIV 0
     for (uint8_t j=0 ; j < 5 ; j++) {
-      if (Settings.shuttercoeff[j][index] == 0) {
+      if (Settings.shuttercoeff[j][i] == 0) {
         AddLog_P2(LOG_LEVEL_ERROR, PSTR("SHT: RESET/INIT CALIBRATION MATRIX DIV 0"));
         for (uint8_t k=0 ; k < 5 ; k++) {
-          Settings.shuttercoeff[k][index] = messwerte[k] * 1000 / messwerte[4];
+          Settings.shuttercoeff[k][i] = messwerte[k] * 1000 / messwerte[4];
         }
       }
     }
-    for (uint8_t i=0 ; i < 5 ; i++) {
-      if (percent*10 > Settings.shuttercoeff[i][index]) {
-        realpos = Shutter.open_max[index] * calibrate_pos[i+1] / 100;
-        //AddLog_P2(LOG_LEVEL_INFO, PSTR("Realposition TEMP1: %d, %% %d, coeff %d"), realpos, percent, Settings.shuttercoeff[i][index]);
+    for (uint8_t l=0 ; l < 5 ; l++) {
+      if (percent*10 > Settings.shuttercoeff[l][i]) {
+        realpos = Shutter.open_max[i] * calibrate_pos[l+1] / 100;
+        //AddLog_P2(LOG_LEVEL_INFO, PSTR("Realposition TEMP1: %d, %% %d, coeff %d"), realpos, percent, Settings.shuttercoeff[l][i]);
       } else {
-        if ( i == 0) {
-          realpos =  percent * Shutter.open_max[index] * calibrate_pos[i+1] / Settings.shuttercoeff[i][index] / 10;
+        if ( l == 0) {
+          realpos =  percent * Shutter.open_max[i] * calibrate_pos[l+1] / Settings.shuttercoeff[l][i] / 10;
         } else {
-          //uint16_t addon = ( percent*10 - Settings.shuttercoeff[i-1][index] ) * Shutter_Open_Max[index] * (calibrate_pos[i+1] - calibrate_pos[i]) / (Settings.shuttercoeff[i][index] -Settings.shuttercoeff[i-1][index]) / 100;
-          //AddLog_P2(LOG_LEVEL_INFO, PSTR("Realposition TEMP2: %d, %% %d, coeff %d"), addon, (calibrate_pos[i+1] - calibrate_pos[i]), (Settings.shuttercoeff[i][index] -Settings.shuttercoeff[i-1][index]));
-          realpos += ( percent*10 - Settings.shuttercoeff[i-1][index] ) * Shutter.open_max[index] * (calibrate_pos[i+1] - calibrate_pos[i]) / (Settings.shuttercoeff[i][index] -Settings.shuttercoeff[i-1][index]) / 100;
+          //uint16_t addon = ( percent*10 - Settings.shuttercoeff[i-1][i] ) * Shutter_Open_Max[i] * (calibrate_pos[l+1] - calibrate_pos[l]) / (Settings.shuttercoeff[l][i] -Settings.shuttercoeff[l-1][l]) / 100;
+          //AddLog_P2(LOG_LEVEL_INFO, PSTR("Realposition TEMP2: %d, %% %d, coeff %d"), addon, (calibrate_pos[l+1] - calibrate_pos[l]), (Settings.shuttercoeff[l][i] -Settings.shuttercoeff[l-1][l]));
+          realpos += ( percent*10 - Settings.shuttercoeff[l-1][i] ) * Shutter.open_max[i] * (calibrate_pos[l+1] - calibrate_pos[l]) / (Settings.shuttercoeff[l][i] -Settings.shuttercoeff[l-1][i]) / 100;
         }
         break;
       }
@@ -117,25 +123,25 @@ int32_t ShutterPercentToRealPosition(uint8_t percent,uint8_t index)
 	}
 }
 
-uint8_t ShutterRealToPercentPosition(int32_t realpos, uint8_t index)
+uint8_t ShutterRealToPercentPosition(int32_t realpos, uint8_t i)
 {
-	if (Settings.shutter_set50percent[index] != 50) {
-		return Settings.shuttercoeff[2][index] * 5 > realpos ? realpos / Settings.shuttercoeff[2][index] : (realpos-Settings.shuttercoeff[0][index]) / Settings.shuttercoeff[1][index];
+	if (Settings.shutter_set50percent[i] != 50) {
+		return Settings.shuttercoeff[2][i] * 5 > realpos ? realpos / Settings.shuttercoeff[2][i] : (realpos-Settings.shuttercoeff[0][i]) / Settings.shuttercoeff[1][i];
 	} else {
     int16_t realpercent;
 
-    for (uint8_t i=0 ; i < 5 ; i++) {
-      if (realpos > Shutter.open_max[index] * calibrate_pos[i+1] / 100) {
-        realpercent = Settings.shuttercoeff[i][index] /10;
-        //AddLog_P2(LOG_LEVEL_INFO, PSTR("Realpercent TEMP1: %d, %% %d, coeff %d"), realpercent, realpos, Shutter_Open_Max[index] * calibrate_pos[i+1] / 100);
+    for (uint8_t j=0 ; j < 5 ; j++) {
+      if (realpos > Shutter.open_max[i] * calibrate_pos[j+1] / 100) {
+        realpercent = Settings.shuttercoeff[j][i] /10;
+        //AddLog_P2(LOG_LEVEL_INFO, PSTR("Realpercent TEMP1: %d, %% %d, coeff %d"), realpercent, realpos, Shutter_Open_Max[i] * calibrate_pos[i+1] / 100);
       } else {
         if ( i == 0) {
-          realpercent =  ( realpos - (Shutter.open_max[index] * calibrate_pos[i] / 100) ) * 10 * Settings.shuttercoeff[i][index] / calibrate_pos[i+1] / Shutter.open_max[index];
+          realpercent =  ( realpos - (Shutter.open_max[i] * calibrate_pos[j] / 100) ) * 10 * Settings.shuttercoeff[j][i] / calibrate_pos[j+1] / Shutter.open_max[i];
         } else {
-          //uint16_t addon = ( realpos - (Shutter_Open_Max[index] * calibrate_pos[i] / 100) ) * 10 * (Settings.shuttercoeff[i][index] - Settings.shuttercoeff[i-1][index]) / (calibrate_pos[i+1] - calibrate_pos[i])/ Shutter_Open_Max[index];
-          //uint16_t addon = ( percent*10 - Settings.shuttercoeff[i-1][index] ) * Shutter_Open_Max[index] * (calibrate_pos[i+1] - calibrate_pos[i]) / (Settings.shuttercoeff[i][index] -Settings.shuttercoeff[i-1][index]) / 100;
-          //AddLog_P2(LOG_LEVEL_INFO, PSTR("Realpercent TEMP2: %d, delta %d,  %% %d, coeff %d"), addon,( realpos - (Shutter_Open_Max[index] * calibrate_pos[i] / 100) ) , (calibrate_pos[i+1] - calibrate_pos[i])* Shutter_Open_Max[index]/100, (Settings.shuttercoeff[i][index] -Settings.shuttercoeff[i-1][index]));
-          realpercent += ( realpos -  (Shutter.open_max[index] * calibrate_pos[i] / 100) ) * 10 * (Settings.shuttercoeff[i][index] - Settings.shuttercoeff[i-1][index]) / (calibrate_pos[i+1] - calibrate_pos[i]) / Shutter.open_max[index] ;
+          //uint16_t addon = ( realpos - (Shutter_Open_Max[i] * calibrate_pos[i] / 100) ) * 10 * (Settings.shuttercoeff[i][i] - Settings.shuttercoeff[i-1][i]) / (calibrate_pos[i+1] - calibrate_pos[i])/ Shutter_Open_Max[i];
+          //uint16_t addon = ( percent*10 - Settings.shuttercoeff[i-1][i] ) * Shutter_Open_Max[i] * (calibrate_pos[i+1] - calibrate_pos[i]) / (Settings.shuttercoeff[i][i] -Settings.shuttercoeff[i-1][i]) / 100;
+          //AddLog_P2(LOG_LEVEL_INFO, PSTR("Realpercent TEMP2: %d, delta %d,  %% %d, coeff %d"), addon,( realpos - (Shutter_Open_Max[i] * calibrate_pos[i] / 100) ) , (calibrate_pos[i+1] - calibrate_pos[i])* Shutter_Open_Max[i]/100, (Settings.shuttercoeff[i][i] -Settings.shuttercoeff[i-1][i]));
+          realpercent += ( realpos -  (Shutter.open_max[i] * calibrate_pos[j] / 100) ) * 10 * (Settings.shuttercoeff[j][i] - Settings.shuttercoeff[j-1][i]) / (calibrate_pos[j+1] - calibrate_pos[j]) / Shutter.open_max[i] ;
         }
         break;
       }
@@ -154,7 +160,7 @@ void ShutterInit(void)
 
   // if shutter 4 is unused
   if (Settings.shutter_startrelay[MAX_SHUTTERS] == 0) {
-     Shutter.max_pwm_frequency = Settings.shuttercoeff[4][4] > 0 ? Settings.shuttercoeff[4][4] : Shutter.max_pwm_frequency;
+     Shutter.max_pwm_frequency = Settings.shuttercoeff[4][3] > 0 ? Settings.shuttercoeff[4][3] : Shutter.max_pwm_frequency;
   }
   for (uint32_t i = 0; i < MAX_SHUTTERS; i++) {
     // set startrelay to 1 on first init, but only to shutter 1. 90% usecase
@@ -249,35 +255,28 @@ void ShutterUpdatePosition(void)
         Shutter.real_position[i] =  ShutterCounterBasedPosition(i);
 
         int32_t  max_frequency = Shutter.direction[i] == 1 ? Shutter.max_pwm_frequency : Shutter.max_close_pwm_frequency[i];
-        uint16_t  max_freq_change_per_sec =  Shutter.max_pwm_frequency*steps_per_second/(Shutter.motordelay[i]>0 ? Shutter.motordelay[i] : 1);
-        uint16_t  min_runtime_ms = Shutter.pwm_frequency*1000 / max_freq_change_per_sec;
-        uint16_t  velocity = Shutter.direction[i] == 1 ? 100 : Shutter.close_velocity[i];
+        int32_t  max_freq_change_per_sec =  Shutter.max_pwm_frequency*steps_per_second / (Shutter.motordelay[i]>0 ? Shutter.motordelay[i] : 1);
+        int32_t  min_runtime_ms = Shutter.pwm_frequency*1000 / max_freq_change_per_sec;
+        int32_t  velocity = Shutter.direction[i] == 1 ? 100 : Shutter.close_velocity[i];
+        int32_t  minstopway = min_runtime_ms * velocity / 100 * Shutter.pwm_frequency / max_frequency  * Shutter.direction[i] ;
 
-
-        int32_t  next_possible_stop = Shutter.real_position[i] + (Shutter.direction[i] * velocity *min_runtime_ms * Shutter.pwm_frequency / max_frequency / 100 ) ;
+        int32_t  next_possible_stop = Shutter.real_position[i] + minstopway ;
         stop_position_delta =200 * Shutter.pwm_frequency/max_frequency + Shutter.direction[i] * (next_possible_stop - Shutter.target_position[i]);
-        int32_t  act_freq_change = tmin(tmax(max_freq_change_per_sec*(100-(Shutter.direction[i]*(Shutter.target_position[i]-next_possible_stop)    ))/2000 , max_freq_change_per_sec*8/200), max_freq_change_per_sec*12/200);
+        //Shutter.accelerator[i] = tmin(tmax(max_freq_change_per_sec*(100-(Shutter.direction[i]*(Shutter.target_position[i]-next_possible_stop)    ))/2000 , max_freq_change_per_sec*9/200), max_freq_change_per_sec*11/200);
         //int32_t act_freq_change = max_freq_change_per_sec/20;
-        AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR("SHT: time: %d, cur_freq %d, act_freq_change %d->%d, min_runtime_ms %d, act.pos %d, next_stop %d, target: %d"),Shutter.time[i],
-                                      Shutter.pwm_frequency,max_freq_change_per_sec/20,act_freq_change,min_runtime_ms,Shutter.real_position[i], next_possible_stop,Shutter.target_position[i]);
+        AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR("SHT: time: %d, velocity %d, minstopway %d,cur_freq %d, max_frequency %d, act_freq_change %d, min_runtime_ms %d, act.pos %d, next_stop %d, target: %d"),Shutter.time[i],velocity,minstopway,
+                                      Shutter.pwm_frequency,max_frequency, Shutter.accelerator[i],min_runtime_ms,Shutter.real_position[i], next_possible_stop,Shutter.target_position[i]);
 
-        if (next_possible_stop * Shutter.direction[i] > Shutter.target_position[i] * Shutter.direction[i] || Shutter.state[i] == RAMP_DOWN) {
-          Shutter.pwm_frequency = Shutter.pwm_frequency > max_freq_change_per_sec/steps_per_second ? Shutter.pwm_frequency-act_freq_change : max_freq_change_per_sec/steps_per_second;
-          Shutter.state[i] = RAMP_DOWN;
-        } else if (  Shutter.state[i] == RAMP_UP) {
-          // ramp up phase. calculate frequency
-          Shutter.pwm_frequency += max_freq_change_per_sec / steps_per_second;
-          if (Shutter.pwm_frequency >=  max_frequency) {
-            Shutter.pwm_frequency =  max_frequency;
-            Shutter.state[i] == HOLD;
-          }
+        if (Shutter.accelerator[i] < 0 || next_possible_stop * Shutter.direction[i] > Shutter.target_position[i] * Shutter.direction[i] ) {
+
+            Shutter.accelerator[i] = - tmin(tmax(max_freq_change_per_sec*(100-(Shutter.direction[i]*(Shutter.target_position[i]-next_possible_stop)    ))/2000 , max_freq_change_per_sec*9/200), max_freq_change_per_sec*12/200);
+            //AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR("SHT: Ramp down: acc: %d"),   Shutter.accelerator[i]);
+        } else if (  Shutter.accelerator[i] > 0 && Shutter.pwm_frequency ==  max_frequency) {
+          Shutter.accelerator[i] = 0;
         }
-        analogWriteFreq(Shutter.pwm_frequency);
-        analogWrite(pin[GPIO_PWM1+i], 50);
       } else {
         Shutter.real_position[i] = Shutter.start_position[i] + ( (Shutter.time[i] - Shutter.motordelay[i]) * (Shutter.direction[i] > 0 ? 100 : -Shutter.close_velocity[i]));
       }
-
       if ( Shutter.real_position[i] * Shutter.direction[i] + stop_position_delta >= Shutter.target_position[i] * Shutter.direction[i]  ) {
         // calculate relay number responsible for current movement.
         //AddLog_P2(LOG_LEVEL_DEBUG, PSTR("SHT: Stop Condition detected: real: %d, Target: %d, direction: %d"),Shutter.real_position[i], Shutter.target_position[i],Shutter.direction[i]);
@@ -297,6 +296,7 @@ void ShutterUpdatePosition(void)
             missing_steps = ((Shutter.target_position[i]-Shutter.start_position[i])*Shutter.direction[i]*Shutter.max_pwm_frequency/2000) - RtcSettings.pulse_counter[i];
             //prepare for stop PWM
             AddLog_P2(LOG_LEVEL_DEBUG, PSTR("SHT: Remain steps %d, counter %d, freq %d"), missing_steps, RtcSettings.pulse_counter[i] ,Shutter.pwm_frequency);
+            Shutter.accelerator[i] = 0;
             Shutter.pwm_frequency = Shutter.pwm_frequency > 250 ? 250 : Shutter.pwm_frequency;
             analogWriteFreq(Shutter.pwm_frequency);
             analogWrite(pin[GPIO_PWM1+i], 50);
@@ -360,49 +360,51 @@ bool ShutterState(uint8_t device)
           (Shutter.mask & (1 << (Settings.shutter_startrelay[device]-1))) );
 }
 
-void ShutterStartInit(uint8_t index, int8_t direction, int32_t target_pos)
+void ShutterStartInit(uint8_t i, int8_t direction, int32_t target_pos)
 {
-  //AddLog_P2(LOG_LEVEL_DEBUG, PSTR("SHT: dir %d, delta1 %d, delta2 %d, grant %d"),direction, (Shutter.open_max[index] - Shutter.real_position[index]) / Shutter.close_velocity[index], Shutter.real_position[index] / Shutter.close_velocity[index], 2+Shutter.motordelay[index]);
-  if (  ( direction ==  1 && (Shutter.open_max[index] - Shutter.real_position[index]) / 100 <= 2 )
-     || ( direction == -1 && Shutter.real_position[index] / Shutter.close_velocity[index]   <= 2)) {
+  //AddLog_P2(LOG_LEVEL_DEBUG, PSTR("SHT: dir %d, delta1 %d, delta2 %d, grant %d"),direction, (Shutter.open_max[i] - Shutter.real_position[i]) / Shutter.close_velocity[i], Shutter.real_position[i] / Shutter.close_velocity[i], 2+Shutter.motordelay[i]);
+  if (  ( direction ==  1 && (Shutter.open_max[i] - Shutter.real_position[i]) / 100 <= 2 )
+     || ( direction == -1 && Shutter.real_position[i] / Shutter.close_velocity[i]   <= 2)) {
     Shutter.skip_relay_change = 1 ;
   } else {
-    if (pin[GPIO_PWM1+index] < 99) {
+    if (Shutter.mode == SHT_OFF_ON__OPEN_CLOSE_STEPPER) {
       Shutter.pwm_frequency = 0;
       analogWriteFreq(Shutter.pwm_frequency);
-      analogWrite(pin[GPIO_PWM1+index], 0);
+      analogWrite(pin[GPIO_PWM1+i], 0);
       // can be operated without counter, but then not that acurate.
-      if (pin[GPIO_CNTR1+index] < 99) {
-        RtcSettings.pulse_counter[index] = 0;
+      if (pin[GPIO_CNTR1+i] < 99) {
+        RtcSettings.pulse_counter[i] = 0;
       }
-      Shutter.state[index] = RAMP_UP;
+      Shutter.accelerator[i] = Shutter.max_pwm_frequency / (Shutter.motordelay[i]>0 ? Shutter.motordelay[i] : 1);
+      AddLog_P2(LOG_LEVEL_DEBUG, PSTR("SHT: Ramp up: %d"), Shutter.accelerator[i]);
     }
-    Shutter.target_position[index] = target_pos;
-    Shutter.start_position[index] = Shutter.real_position[index];
-    Shutter.time[index] = 0;
+    Shutter.target_position[i] = target_pos;
+    Shutter.start_position[i] = Shutter.real_position[i];
+    Shutter.time[i] = 0;
     Shutter.skip_relay_change = 0;
-    Shutter.direction[index] = direction;
-    //AddLog_P2(LOG_LEVEL_DEBUG, PSTR("SHT: real %d, start %d, counter %d, max_freq %d, dir %d, freq %d"),Shutter.real_position[index], Shutter.start_position[index] ,RtcSettings.pulse_counter[index],Shutter.max_pwm_frequency , Shutter.direction[index] ,Shutter.max_pwm_frequency );
+    Shutter.direction[i] = direction;
+    //AddLog_P2(LOG_LEVEL_DEBUG, PSTR("SHT: real %d, start %d, counter %d, max_freq %d, dir %d, freq %d"),Shutter.real_position[i], Shutter.start_position[i] ,RtcSettings.pulse_counter[i],Shutter.max_pwm_frequency , Shutter.direction[i] ,Shutter.max_pwm_frequency );
   }
-  //AddLog_P2(LOG_LEVEL_INFO,  PSTR("SHT: Start shutter: %d from %d to %d in directin %d"), index, Shutter.start_position[index], Shutter.target_position[index], Shutter.direction[index]);
+  //AddLog_P2(LOG_LEVEL_INFO,  PSTR("SHT: Start shutter: %d from %d to %d in directin %d"), i, Shutter.start_position[i], Shutter.target_position[i], Shutter.direction[i]);
 }
 
-void ShutterWaitForMotorStop(uint8_t index)
+void ShutterWaitForMotorStop(uint8_t i)
 {
   AddLog_P2(LOG_LEVEL_INFO, PSTR("SHT: Wait for Motorstop.."));
   if (Shutter.mode == SHT_OFF_ON__OPEN_CLOSE || Shutter.mode == SHT_OFF_ON__OPEN_CLOSE_STEPPER) {
     if ( Shutter.mode = SHT_OFF_ON__OPEN_CLOSE_STEPPER) {
       //AddLog_P2(LOG_LEVEL_INFO, PSTR("SHT: Frequency change %d"), Shutter.pwm_frequency);
       while (Shutter.pwm_frequency > 0) {
-        Shutter.pwm_frequency = tmax(Shutter.pwm_frequency-((Shutter.direction[index] == 1 ? Shutter.max_pwm_frequency : Shutter.max_close_pwm_frequency[index])/(Shutter.motordelay[index]+1)) , 0);
+        Shutter.accelerator[i] = 0;
+        Shutter.pwm_frequency = tmax(Shutter.pwm_frequency-((Shutter.direction[i] == 1 ? Shutter.max_pwm_frequency : Shutter.max_close_pwm_frequency[i])/(Shutter.motordelay[i]+1)) , 0);
         analogWriteFreq(Shutter.pwm_frequency);
-        analogWrite(pin[GPIO_PWM1+index], 50);
+        analogWrite(pin[GPIO_PWM1+i], 50);
         delay(50);
       }
-      analogWrite(pin[GPIO_PWM1+index], 0);
-      Shutter.real_position[index] = ShutterCounterBasedPosition(index);
+      analogWrite(pin[GPIO_PWM1+i], 0);
+      Shutter.real_position[i] = ShutterCounterBasedPosition(i);
     } else {
-      ExecuteCommandPower(Settings.shutter_startrelay[index], 0, SRC_SHUTTER);
+      ExecuteCommandPower(Settings.shutter_startrelay[i], 0, SRC_SHUTTER);
       delay(MOTOR_STOP_TIME);
     }
   } else {
@@ -505,7 +507,7 @@ void ShutterSetPosition(uint8_t device, uint8_t position)
 
 void CmndShutterOpen(void)
 {
-  //AddLog_P2(LOG_LEVEL_INFO, PSTR("SHT: Payload close: %d, index %d"), XdrvMailbox.payload, XdrvMailbox.index);
+  //AddLog_P2(LOG_LEVEL_INFO, PSTR("SHT: Payload close: %d, i %d"), XdrvMailbox.payload, XdrvMailbox.i);
   if ( XdrvMailbox.index == 1 && XdrvMailbox.payload != -99) {
     XdrvMailbox.index = XdrvMailbox.payload;
   }
@@ -516,7 +518,7 @@ void CmndShutterOpen(void)
 
 void CmndShutterClose(void)
 {
-  //AddLog_P2(LOG_LEVEL_INFO, PSTR("SHT: Payload open: %d, index %d"), XdrvMailbox.payload, XdrvMailbox.index);
+  //AddLog_P2(LOG_LEVEL_INFO, PSTR("SHT: Payload open: %d, i %d"), XdrvMailbox.payload, XdrvMailbox.i);
   if ( XdrvMailbox.index == 1 && XdrvMailbox.payload != -99) {
     XdrvMailbox.index = XdrvMailbox.payload;
   }
@@ -532,14 +534,14 @@ void CmndShutterStop(void)
     if ( XdrvMailbox.index == 1 && XdrvMailbox.payload != -99) {
       XdrvMailbox.index = XdrvMailbox.payload;
     }
-    uint32_t index = XdrvMailbox.index -1;
-    if (Shutter.direction[index] != 0) {
+    uint32_t i = XdrvMailbox.index -1;
+    if (Shutter.direction[i] != 0) {
 
-      AddLog_P2(LOG_LEVEL_INFO, PSTR("SHT: Stop moving %d: dir: %d"), XdrvMailbox.index, Shutter.direction[index]);
+      AddLog_P2(LOG_LEVEL_INFO, PSTR("SHT: Stop moving %d: dir: %d"), XdrvMailbox.index, Shutter.direction[i]);
       // set stop position 10 steps ahead (0.5sec to allow normal stop)
-      int32_t temp_realpos = Shutter.start_position[index] + ( (Shutter.time[index]+10) * (Shutter.direction[index] > 0 ? 100 : -Shutter.close_velocity[index]));
-      XdrvMailbox.payload = ShutterRealToPercentPosition(temp_realpos, index);
-      //XdrvMailbox.payload = Settings.shuttercoeff[2][index] * 5 > temp_realpos ? temp_realpos / Settings.shuttercoeff[2][index] : (temp_realpos-Settings.shuttercoeff[0,index]) / Settings.shuttercoeff[1][index];
+      int32_t temp_realpos = Shutter.start_position[i] + ( (Shutter.time[i]+10) * (Shutter.direction[i] > 0 ? 100 : -Shutter.close_velocity[i]));
+      XdrvMailbox.payload = ShutterRealToPercentPosition(temp_realpos, i);
+      //XdrvMailbox.payload = Settings.shuttercoeff[2][i] * 5 > temp_realpos ? temp_realpos / Settings.shuttercoeff[2][i] : (temp_realpos-Settings.shuttercoeff[0,i]) / Settings.shuttercoeff[1][i];
       last_source = SRC_WEBGUI;
       CmndShutterPosition();
     } else {
@@ -551,7 +553,7 @@ void CmndShutterStop(void)
 void CmndShutterPosition(void)
 {
   if ((XdrvMailbox.index > 0) && (XdrvMailbox.index <= shutters_present)) {
-    uint32_t index = XdrvMailbox.index -1;
+    uint32_t index = XdrvMailbox.index-1;
     //limit the payload
     AddLog_P2(LOG_LEVEL_DEBUG, PSTR("SHT: Pos. in: payload %s (%d), payload %d, idx %d, src %d"), XdrvMailbox.data , XdrvMailbox.data_len, XdrvMailbox.payload , XdrvMailbox.index, last_source );
 
@@ -569,7 +571,7 @@ void CmndShutterPosition(void)
     if (XdrvMailbox.payload != -99) {
       //target_pos_percent = Settings.shutter_invert[index] ? 100 - target_pos_percent : target_pos_percent;
       Shutter.target_position[index] = ShutterPercentToRealPosition(target_pos_percent, index);
-      Shutter.state[index] = RAMP_UP;
+      Shutter.accelerator[index] = Shutter.max_pwm_frequency / (Shutter.motordelay[index]>0 ? Shutter.motordelay[index] : 1);
       //Shutter.target_position[index] = XdrvMailbox.payload < 5 ?  Settings.shuttercoeff[2][index] * XdrvMailbox.payload : Settings.shuttercoeff[1][index] * XdrvMailbox.payload + Settings.shuttercoeff[0,index];
       AddLog_P2(LOG_LEVEL_DEBUG, PSTR("SHT: lastsource %d:, real %d, target %d, payload %d"), last_source, Shutter.real_position[index] ,Shutter.target_position[index],target_pos_percent);
     }
@@ -688,7 +690,7 @@ void CmndShutterFrequency(void)
   if ((XdrvMailbox.payload > 0) && (XdrvMailbox.payload <= 20000)) {
     Shutter.max_pwm_frequency =  XdrvMailbox.payload;
     if (shutters_present < 4) {
-      Settings.shuttercoeff[4][4] = Shutter.max_pwm_frequency;
+      Settings.shuttercoeff[4][3] = Shutter.max_pwm_frequency;
     }
     ShutterInit();
     ResponseCmndNumber(XdrvMailbox.payload);  // ????
@@ -736,8 +738,8 @@ void CmndShutterCalibration(void)  // ????
           messwerte[i] = field;
         }
         for (i=0 ; i < 5 ; i++) {
-          Settings.shuttercoeff[i][XdrvMailbox.index-1] = messwerte[i] * 1000 / messwerte[4];
-          AddLog_P2(LOG_LEVEL_INFO, PSTR("Settings.shuttercoeff: %d, i: %d, value: %d, messwert %d"), i,XdrvMailbox.index-1,Settings.shuttercoeff[i][XdrvMailbox.index-1], messwerte[i]);
+          Settings.shuttercoeff[i][XdrvMailbox.index -1] = messwerte[i] * 1000 / messwerte[4];
+          AddLog_P2(LOG_LEVEL_INFO, PSTR("Settings.shuttercoeff: %d, i: %d, value: %d, messwert %d"), i,XdrvMailbox.index -1,Settings.shuttercoeff[i][XdrvMailbox.index -1], messwerte[i]);
         }
         ShutterInit();
         ResponseCmndIdxChar(XdrvMailbox.data);
