@@ -316,6 +316,7 @@ Hyleton 317           {"NAME":"hyleton-317","GPIO":[56,0,57,0,58,0,0,0,0,90,0,21
 Innens BSD29          {"NAME":"BSD29","GPIO":[0,0,56,131,0,134,0,0,0,17,132,21,0],"FLAG":0,"BASE":52}
 iSwitch               {"NAME":"Smart Plug XSA","GPIO":[255,17,255,255,255,255,255,255,255,56,21,255,255],"FLAG":0,"BASE":18}
 Jeeo TF-SH330         {"NAME":"Jeeo TF-SH330","GPIO":[56,255,255,255,255,255,255,255,255,17,255,21,255],"FLAG":1,"BASE":18}
+Jeeo TF-SH331W         {"NAME":"Jeeo TF-SH331W","GPIO":[56,0,158,0,0,134,0,0,131,17,132,21,0],"FLAG":0,"BASE":18}
 Jinvoo SM-PW701U      {"NAME":"SM-PW702","GPIO":[0,0,0,0,57,56,0,0,21,17,0,0,0],"FLAG":0,"BASE":18}
 Jinvoo SM-PW762U      {"NAME":"SM-PW762U","GPIO":[0,0,0,0,158,56,0,0,21,17,22,0,0],"FLAG":0,"BASE":18}
 Jules V (Upgrade Version) {"NAME":"Jules-V_UV","GPIO":[56,0,0,0,0,134,0,0,21,17,132,57,131],"FLAG":0,"BASE":18}
