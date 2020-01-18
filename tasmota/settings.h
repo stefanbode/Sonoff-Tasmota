@@ -470,7 +470,7 @@ struct SYSCFG {
 //stb mod
   uint8_t       pulse_devider[MAX_COUNTERS];
 
-  uint8_t       free_ec7[214];             // EC7
+  uint8_t       free_ec7[210];             // EC7
 //end
   uint32_t      shutter_button[MAX_KEYS];  // FDC
   uint32_t      i2c_drivers[3];            // FEC I2cDriver
