@@ -1,7 +1,7 @@
 /*
   nl-NL.h - localization for Dutch - Nederland for Tasmota
 
-  Copyright (C) 2019  Theo Arends
+  Copyright (C) 2020  Theo Arends
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -28,7 +28,7 @@
  * Use online command StateText to translate ON, OFF, HOLD and TOGGLE.
  * Use online command Prefix to translate cmnd, stat and tele.
  *
- * Updated until v6.7.0
+ * Updated until v8.0.0
 \*********************************************************************/
 
 //#define LANGUAGE_MODULE_NAME         // Enable to display "Module Generic" (ie Spanish), Disable to display "Generic Module" (ie English)
@@ -74,6 +74,7 @@
 #define D_COUNT "Aantal"
 #define D_CORS_DOMAIN "CORS Domain"
 #define D_COUNTER "Teller"
+#define D_CT_POWER "CT Power"
 #define D_CURRENT "Stroom"          // As in Voltage and Current
 #define D_DATA "Data"
 #define D_DARKLIGHT "Donker"
@@ -83,7 +84,7 @@
 #define D_DNS_SERVER "DNS Server"
 #define D_DONE "Klaar"
 #define D_DST_TIME "ZT"
-#define D_ECO2 "eCO2"
+#define D_ECO2 "eCO₂"
 #define D_EMULATION "Emulatie"
 #define D_ENABLED "Geactiveerd"
 #define D_ERASE "Wissen"
@@ -113,6 +114,7 @@
 #define D_LIGHT "Licht"
 #define D_LWT "LWT"
 #define D_MODULE "Module"
+#define D_MOISTURE "Moisture"
 #define D_MQTT "MQTT"
 #define D_MULTI_PRESS "meervoudig"
 #define D_NOISE "Lawaai"
@@ -353,6 +355,7 @@
 #define D_UPLOAD_ERR_11 "Wissen RF chip mislukt"
 #define D_UPLOAD_ERR_12 "Opwaarderen RF chip mislukt"
 #define D_UPLOAD_ERR_13 "Decoderen RF bestand mislukt"
+#define D_UPLOAD_ERR_14 "Niet geschikt"
 #define D_UPLOAD_ERROR_CODE "Opwaardeer foutcode"
 
 #define D_ENTER_COMMAND "Geef opdracht"
@@ -478,12 +481,12 @@
 #define D_PARTICALS_BEYOND "Stofdeeltjes"
 
 // xsns_32_mpu6050.ino
-#define D_AX_AXIS "Accel. X-Axis"
-#define D_AY_AXIS "Accel. Y-Axis"
-#define D_AZ_AXIS "Accel. Z-Axis"
-#define D_GX_AXIS "Gyro X-Axis"
-#define D_GY_AXIS "Gyro Y-Axis"
-#define D_GZ_AXIS "Gyro Z-Axis"
+#define D_AX_AXIS "Versn. X-as"
+#define D_AY_AXIS "Versn. Y-as"
+#define D_AZ_AXIS "Versn. Z-as"
+#define D_GX_AXIS "Gyro X-as"
+#define D_GY_AXIS "Gyro Y-as"
+#define D_GZ_AXIS "Gyro Z-as"
 
 // xsns_34_hx711.ino
 #define D_HX_CAL_REMOVE "Verwijder gewicht"
@@ -626,9 +629,11 @@
 #define D_SENSOR_SM2135_DAT    "SM2135 Dat"
 #define D_SENSOR_DEEPSLEEP     "DeepSleep"
 #define D_SENSOR_EXS_ENABLE    "EXS Enable"
-#define D_SENSOR_SLAVE_TX    "Slave TX"
-#define D_SENSOR_SLAVE_RX    "Slave RX"
-#define D_SENSOR_SLAVE_RESET "Slave RST"
+#define D_SENSOR_SLAVE_TX      "Slave TX"
+#define D_SENSOR_SLAVE_RX      "Slave RX"
+#define D_SENSOR_SLAVE_RESET   "Slave RST"
+#define D_SENSOR_GPS_RX        "GPS RX"
+#define D_SENSOR_GPS_TX        "GPS TX"
 
 // Units
 #define D_UNIT_AMPERE "A"
@@ -643,7 +648,7 @@
 #define D_UNIT_KILOOHM "kΩ"
 #define D_UNIT_KILOWATTHOUR "kWh"
 #define D_UNIT_LUX "lx"
-#define D_UNIT_MICROGRAM_PER_CUBIC_METER "µg/m3"
+#define D_UNIT_MICROGRAM_PER_CUBIC_METER "µg/m³"
 #define D_UNIT_MICROMETER "µm"
 #define D_UNIT_MICROSECOND "µs"
 #define D_UNIT_MILLIAMPERE "mA"
@@ -697,5 +702,18 @@
 #define D_SOLAX_ERROR_6   "Overtemperatuur"
 #define D_SOLAX_ERROR_7   "Ventilator"
 #define D_SOLAX_ERROR_8   "Overige"
+
+//xdrv_10_scripter.ino
+#define D_CONFIGURE_SCRIPT     "Edit script"
+#define D_SCRIPT               "edit script"
+#define D_SDCARD_UPLOAD        "file upload"
+#define D_SDCARD_DIR           "sd card directory"
+#define D_UPL_DONE             "Done"
+#define D_SCRIPT_CHARS_LEFT    "chars left"
+#define D_SCRIPT_CHARS_NO_MORE "no more chars"
+#define D_SCRIPT_DOWNLOAD      "Download"
+#define D_SCRIPT_ENABLE        "script enable"
+#define D_SCRIPT_UPLOAD        "Upload"
+#define D_SCRIPT_UPLOAD_FILES  "Upload files"
 
 #endif  // _LANGUAGE_NL_NL_H_

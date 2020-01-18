@@ -1,7 +1,7 @@
 /*
   support.ino - support for Tasmota
 
-  Copyright (C) 2019  Theo Arends
+  Copyright (C) 2020  Theo Arends
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -57,8 +57,13 @@ void OsWatchTicker(void)
 //    AddLog_P(LOG_LEVEL_INFO, PSTR(D_LOG_APPLICATION D_OSWATCH " " D_BLOCKED_LOOP ". " D_RESTARTING));  // Save iram space
     RtcSettings.oswatch_blocked_loop = 1;
     RtcSettingsSave();
+
 //    ESP.restart();  // normal reboot
-    ESP.reset();  // hard reset
+//    ESP.reset();  // hard reset
+
+    // Force an exception to get a stackdump
+    volatile uint32_t dummy;
+    dummy = *((uint32_t*) 0x00000000);
   }
 }
 
@@ -328,6 +333,22 @@ char* RemoveSpace(char* p)
   return p;
 }
 
+char* ReplaceCommaWithDot(char* p)
+{
+  char* write = (char*)p;
+  char* read = (char*)p;
+  char ch = '.';
+
+  while (ch != '\0') {
+    ch = *read++;
+    if (ch == ',') {
+      ch = '.';
+    }
+    *write++ = ch;
+  }
+  return p;
+}
+
 char* LowerCase(char* dest, const char* source)
 {
   char* write = dest;
@@ -478,17 +499,14 @@ bool NewerVersion(char* version_str)
   uint32_t version = 0;
   uint32_t i = 0;
   char *str_ptr;
-  char* version_dup = strdup(version_str);  // Duplicate the version_str as strtok_r will modify it.
 
-  if (!version_dup) {
-    return false;  // Bail if we can't duplicate. Assume bad.
-  }
+  char version_dup[strlen(version_str) +1];
+  strncpy(version_dup, version_str, sizeof(version_dup));  // Duplicate the version_str as strtok_r will modify it.
   // Loop through the version string, splitting on '.' seperators.
   for (char *str = strtok_r(version_dup, ".", &str_ptr); str && i < sizeof(VERSION); str = strtok_r(nullptr, ".", &str_ptr), i++) {
     int field = atoi(str);
     // The fields in a version string can only range from 0-255.
     if ((field < 0) || (field > 255)) {
-      free(version_dup);
       return false;
     }
     // Shuffle the accumulated bytes across, and add the new byte.
@@ -500,7 +518,6 @@ bool NewerVersion(char* version_str)
       i++;
     }
   }
-  free(version_dup);  // We no longer need this.
   // A version string should have 2-4 fields. e.g. 1.2, 1.2.3, or 1.2.3a (= 1.2.3.1).
   // If not, then don't consider it a valid version string.
   if ((i < 2) || (i > sizeof(VERSION))) {
@@ -715,6 +732,13 @@ bool DecodeCommand(const char* haystack, void (* const MyCommand[])(void))
 {
   GetTextIndexed(XdrvMailbox.command, CMDSZ, 0, haystack);  // Get prefix if available
   int prefix_length = strlen(XdrvMailbox.command);
+  if (prefix_length) {
+    char prefix[prefix_length +1];
+    snprintf_P(prefix, sizeof(prefix), XdrvMailbox.topic);  // Copy prefix part only
+    if (strcasecmp(prefix, XdrvMailbox.command)) {
+      return false;                                         // Prefix not in command
+    }
+  }
   int command_code = GetCommandCode(XdrvMailbox.command + prefix_length, CMDSZ, XdrvMailbox.topic + prefix_length, haystack);
   if (command_code > 0) {                                   // Skip prefix
     XdrvMailbox.command_code = command_code -1;
@@ -765,33 +789,40 @@ String GetSerialConfig(void)
   return String(config);
 }
 
-void SetSerialBegin(uint32_t baudrate)
+void SetSerialBegin()
 {
-  if (seriallog_level) {
-    AddLog_P2(LOG_LEVEL_INFO, PSTR(D_LOG_APPLICATION "Set Serial to %s %d bit/s"), GetSerialConfig().c_str(), baudrate);
-    delay(100);
-  }
+  uint32_t baudrate = Settings.baudrate * 300;
+  AddLog_P2(LOG_LEVEL_INFO, PSTR(D_LOG_SERIAL "Set to %s %d bit/s"), GetSerialConfig().c_str(), baudrate);
   Serial.flush();
   Serial.begin(baudrate, (SerialConfig)pgm_read_byte(kTasmotaSerialConfig + Settings.serial_config));
-  delay(10);
-  Serial.println();
 }
 
 void SetSerialConfig(uint32_t serial_config)
 {
-  if (serial_config == Settings.serial_config) { return; }
-  if (serial_config > TS_SERIAL_8O2) { return; }
-
-  Settings.serial_config = serial_config;
-  SetSerialBegin(Serial.baudRate());
+  if (serial_config > TS_SERIAL_8O2) {
+    serial_config = TS_SERIAL_8N1;
+  }
+  if (serial_config != Settings.serial_config) {
+    Settings.serial_config = serial_config;
+    SetSerialBegin();
+  }
 }
 
-void SetSerialBaudrate(int baudrate)
+void SetSerialBaudrate(uint32_t baudrate)
 {
   Settings.baudrate = baudrate / 300;
-  if (Serial.baudRate() == baudrate) { return; }
+  if (Serial.baudRate() != baudrate) {
+    SetSerialBegin();
+  }
+}
 
-  SetSerialBegin(baudrate);
+void SetSerial(uint32_t baudrate, uint32_t serial_config)
+{
+  Settings.flag.mqtt_serial = 0;  // CMND_SERIALSEND and CMND_SERIALLOG
+  Settings.serial_config = serial_config;
+  Settings.baudrate = baudrate / 300;
+  SetSeriallog(LOG_LEVEL_NONE);
+  SetSerialBegin();
 }
 
 void ClaimSerial(void)
@@ -799,8 +830,7 @@ void ClaimSerial(void)
   serial_local = true;
   AddLog_P(LOG_LEVEL_INFO, PSTR("SNS: Hardware Serial"));
   SetSeriallog(LOG_LEVEL_NONE);
-  baudrate = Serial.baudRate();
-  Settings.baudrate = baudrate / 300;
+  Settings.baudrate = Serial.baudRate() / 300;
 }
 
 void SerialSendRaw(char *codes)
@@ -978,6 +1008,13 @@ int ResponseJsonEndEnd(void)
 /*********************************************************************************************\
  * GPIO Module and Template management
 \*********************************************************************************************/
+
+void DigitalWrite(uint32_t gpio_pin, uint32_t state)
+{
+  if (pin[gpio_pin] < 99) {
+    digitalWrite(pin[gpio_pin], state &1);
+  }
+}
 
 uint8_t ModuleNr(void)
 {
@@ -1207,45 +1244,18 @@ void TemplateJson(void)
  * Sleep aware time scheduler functions borrowed from ESPEasy
 \*********************************************************************************************/
 
-long TimeDifference(unsigned long prev, unsigned long next)
-{
-  // Return the time difference as a signed value, taking into account the timers may overflow.
-  // Returned timediff is between -24.9 days and +24.9 days.
-  // Returned value is positive when "next" is after "prev"
-  long signed_diff = 0;
-  // To cast a value to a signed long, the difference may not exceed half 0xffffffffUL (= 4294967294)
-  const unsigned long half_max_unsigned_long = 2147483647u;  // = 2^31 -1
-  if (next >= prev) {
-    const unsigned long diff = next - prev;
-    if (diff <= half_max_unsigned_long) {                    // Normal situation, just return the difference.
-      signed_diff = static_cast<long>(diff);                 // Difference is a positive value.
-    } else {
-      // prev has overflow, return a negative difference value
-      signed_diff = static_cast<long>((0xffffffffUL - next) + prev + 1u);
-      signed_diff = -1 * signed_diff;
-    }
-  } else {
-    // next < prev
-    const unsigned long diff = prev - next;
-    if (diff <= half_max_unsigned_long) {                    // Normal situation, return a negative difference value
-      signed_diff = static_cast<long>(diff);
-      signed_diff = -1 * signed_diff;
-    } else {
-      // next has overflow, return a positive difference value
-      signed_diff = static_cast<long>((0xffffffffUL - prev) + next + 1u);
-    }
-  }
-  return signed_diff;
+inline int32_t TimeDifference(uint32_t prev, uint32_t next) {
+  return ((int32_t) (next - prev));
 }
 
-long TimePassedSince(unsigned long timestamp)
+int32_t TimePassedSince(uint32_t timestamp)
 {
   // Compute the number of milliSeconds passed since timestamp given.
   // Note: value can be negative if the timestamp has not yet been reached.
   return TimeDifference(timestamp, millis());
 }
 
-bool TimeReached(unsigned long timer)
+bool TimeReached(uint32_t timer)
 {
   // Check if a certain timeout has been reached.
   const long passed = TimePassedSince(timer);
@@ -1571,10 +1581,10 @@ void Syslog(void)
 {
   // Destroys log_data
 
-  uint32_t current_hash = GetHash(Settings.syslog_host, strlen(Settings.syslog_host));
+  uint32_t current_hash = GetHash(SettingsText(SET_SYSLOG_HOST), strlen(SettingsText(SET_SYSLOG_HOST)));
   if (syslog_host_hash != current_hash) {
     syslog_host_hash = current_hash;
-    WiFi.hostByName(Settings.syslog_host, syslog_host_addr);  // If sleep enabled this might result in exception so try to do it once using hash
+    WiFi.hostByName(SettingsText(SET_SYSLOG_HOST), syslog_host_addr);  // If sleep enabled this might result in exception so try to do it once using hash
   }
   if (PortUdp.beginPacket(syslog_host_addr, Settings.syslog_port)) {
     char syslog_preamble[64];  // Hostname + Id
@@ -1639,6 +1649,16 @@ void AddLog_P(uint32_t loglevel, const char *formatP, const char *formatP2)
   snprintf_P(message, sizeof(message), formatP2);
   strncat(log_data, message, sizeof(log_data) - strlen(log_data) -1);
   AddLog(loglevel);
+}
+
+void PrepLog_P2(uint32_t loglevel, PGM_P formatP, ...)
+{
+  va_list arg;
+  va_start(arg, formatP);
+  vsnprintf_P(log_data, sizeof(log_data), formatP, arg);
+  va_end(arg);
+
+  prepped_loglevel = loglevel;
 }
 
 void AddLog_P2(uint32_t loglevel, PGM_P formatP, ...)

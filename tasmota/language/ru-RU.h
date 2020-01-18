@@ -1,7 +1,7 @@
 /*
   ru-RU.h - localization for Russian - Rissia for Tasmota
 
-  Copyright (C) 2019  Theo Arends / roman-vn
+  Copyright (C) 2020  Theo Arends / roman-vn
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -74,6 +74,7 @@
 #define D_CORS_DOMAIN "CORS Domain"
 #define D_COUNT "Подсчет"
 #define D_COUNTER "Счетчик"
+#define D_CT_POWER "CT Power"
 #define D_CURRENT "Ток"          // As in Voltage and Current
 #define D_DATA "Данные"
 #define D_DARKLIGHT "Темный"
@@ -83,7 +84,7 @@
 #define D_DNS_SERVER "DNS Сервер"
 #define D_DONE "Выполнено"
 #define D_DST_TIME "DST"
-#define D_ECO2 "eCO2"
+#define D_ECO2 "eCO₂"
 #define D_EMULATION "Эмуляция"
 #define D_ENABLED "Активно"
 #define D_ERASE "Стирать"
@@ -113,6 +114,7 @@
 #define D_LIGHT "Свет"
 #define D_LWT "LWT"
 #define D_MODULE "Модуль"
+#define D_MOISTURE "Moisture"
 #define D_MQTT "MQTT"
 #define D_MULTI_PRESS "многократное нажатие"
 #define D_NOISE "Шум"
@@ -353,6 +355,7 @@
 #define D_UPLOAD_ERR_11 "Failed to erase RF chip"
 #define D_UPLOAD_ERR_12 "Failed to write to RF chip"
 #define D_UPLOAD_ERR_13 "Failed to decode RF firmware"
+#define D_UPLOAD_ERR_14 "Not compatible"
 #define D_UPLOAD_ERROR_CODE "Код ошибки загрузки"
 
 #define D_ENTER_COMMAND "Введите команду"
@@ -629,6 +632,8 @@
 #define D_SENSOR_SLAVE_TX    "Slave TX"
 #define D_SENSOR_SLAVE_RX    "Slave RX"
 #define D_SENSOR_SLAVE_RESET "Slave RST"
+#define D_SENSOR_GPS_RX        "GPS RX"
+#define D_SENSOR_GPS_TX        "GPS TX"
 
 // Units
 #define D_UNIT_AMPERE "А"
@@ -643,7 +648,7 @@
 #define D_UNIT_KILOOHM "кОм"
 #define D_UNIT_KILOWATTHOUR "кВт"
 #define D_UNIT_LUX "лк"
-#define D_UNIT_MICROGRAM_PER_CUBIC_METER "мкг/м3"
+#define D_UNIT_MICROGRAM_PER_CUBIC_METER "мкг/м³"
 #define D_UNIT_MICROMETER "мкм"
 #define D_UNIT_MICROSECOND "мкс"
 #define D_UNIT_MILLIAMPERE "мА"
@@ -697,5 +702,18 @@
 #define D_SOLAX_ERROR_6   "Over Temperature Fault"
 #define D_SOLAX_ERROR_7   "Fan Fault"
 #define D_SOLAX_ERROR_8   "Other Device Fault"
+
+//xdrv_10_scripter.ino
+#define D_CONFIGURE_SCRIPT     "Edit script"
+#define D_SCRIPT               "edit script"
+#define D_SDCARD_UPLOAD        "file upload"
+#define D_SDCARD_DIR           "sd card directory"
+#define D_UPL_DONE             "Done"
+#define D_SCRIPT_CHARS_LEFT    "chars left"
+#define D_SCRIPT_CHARS_NO_MORE "no more chars"
+#define D_SCRIPT_DOWNLOAD      "Download"
+#define D_SCRIPT_ENABLE        "script enable"
+#define D_SCRIPT_UPLOAD        "Upload"
+#define D_SCRIPT_UPLOAD_FILES  "Upload files"
 
 #endif  // _LANGUAGE_RU_RU_H_

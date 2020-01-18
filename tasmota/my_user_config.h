@@ -1,7 +1,7 @@
 /*
   my_user_config.h - user specific configuration for Tasmota
 
-  Copyright (C) 2019  Theo Arends
+  Copyright (C) 2020  Theo Arends
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -225,7 +225,7 @@
 #define KEY_DEBOUNCE_TIME      50                // [ButtonDebounce] Number of mSeconds button press debounce time
 #define KEY_HOLD_TIME          40                // [SetOption32] Number of 0.1 seconds to hold Button or external Pushbutton before sending HOLD message
 #define SWITCH_DEBOUNCE_TIME   50                // [SwitchDebounce] Number of mSeconds switch press debounce time
-#define SWITCH_MODE            TOGGLE            // [SwitchMode] TOGGLE, FOLLOW, FOLLOW_INV, PUSHBUTTON, PUSHBUTTON_INV, PUSHBUTTONHOLD, PUSHBUTTONHOLD_INV, PUSHBUTTON_TOGGLE (the wall switch state)
+#define SWITCH_MODE            TOGGLE            // [SwitchMode] TOGGLE, FOLLOW, FOLLOW_INV, PUSHBUTTON, PUSHBUTTON_INV, PUSHBUTTONHOLD, PUSHBUTTONHOLD_INV, PUSHBUTTON_TOGGLE, TOGGLEMULTI, FOLLOWMULTI, FOLLOWMULTI_INV (the wall switch state)
 #define WS2812_LEDS            30                // [Pixels] Number of WS2812 LEDs to start with (max is 512)
 
 #define TEMP_CONVERSION        0                 // [SetOption8] Return temperature in (0 = Celsius or 1 = Fahrenheit)
@@ -270,7 +270,7 @@
 //#define MY_LANGUAGE            sk-SK           // Slovak in Slovakia
 //#define MY_LANGUAGE            sv-SE           // Swedish in Sweden
 //#define MY_LANGUAGE            tr-TR           // Turkish in Turkey
-//#define MY_LANGUAGE            uk-UK           // Ukrainian in Ukraine
+//#define MY_LANGUAGE            uk-UA           // Ukrainian in Ukraine
 //#define MY_LANGUAGE            zh-CN           // Chinese (Simplified) in China
 //#define MY_LANGUAGE            zh-TW           // Chinese (Traditional) in Taiwan
 
@@ -349,10 +349,11 @@
 #define USE_SONOFF_IFAN                          // Add support for Sonoff iFan02 and iFan03 (+2k code)
 #define USE_BUZZER                               // Add support for a buzzer (+0k6 code)
 #define USE_ARILUX_RF                            // Add support for Arilux RF remote controller (+0k8 code, 252 iram (non 2.3.0))
-//#define USE_SHUTTER                              // Add Shutter support for up to 4 shutter with different motortypes (+6k code)
+//#define USE_SHUTTER                              // Add Shutter support for up to 4 shutter with different motortypes (+11k code)
 #define USE_DEEPSLEEP                            // Add support for deepsleep (+1k code)
 //#define USE_EXS_DIMMER                           // Add support for ES-Store WiFi Dimmer (+1k5 code)
 //  #define EXS_MCU_CMNDS                            // Add command to send MCU commands (+0k8 code)
+//#define USE_HOTPLUG                              // Add support for sensor HotPlug
 
 // -- Optional light modules ----------------------
 #define USE_WS2812                               // WS2812 Led string using library NeoPixelBus (+5k code, +1k mem, 232 iram) - Disable by //
@@ -422,6 +423,8 @@
 //  #define USE_PAJ7620                            // [I2cDriver34] Enable PAJ7620 gesture sensor (I2C address 0x73) (+2.5k code)
 //  #define USE_PCF8574                            // [I2cDriver2] Enable PCF8574 I/O Expander (I2C addresses 0x20 - 0x26 and 0x39 - 0x3F) (+1k9 code)
 //  #define USE_HIH6                               // [I2cDriver36] Enable Honeywell HIH Humidity and Temperature sensor (I2C address 0x27) (+0k6)
+//  #define USE_DHT12                              // [I2cDriver41] Enable DHT12 humidity and temperature sensor (I2C address 0x5C) (+0k7 code)
+//  #define USE_DS1624                             // [I2cDriver42] Enable DS1624, DS1621 temperature sensor (I2C addresses 0x48 - 0x4F) (+1k2 code)
 
 //  #define USE_DISPLAY                            // Add I2C Display Support (+2k code)
     #define USE_DISPLAY_MODES1TO5                // Enable display mode 1 to 5 in addition to mode 0
@@ -441,17 +444,21 @@
 
 // -- SPI sensors ---------------------------------
 //#define USE_SPI                                  // Hardware SPI using GPIO12(MISO), GPIO13(MOSI) and GPIO14(CLK) in addition to two user selectable GPIOs(CS and DC)
-
 #ifdef USE_SPI
-  #ifndef USE_DISPLAY
-  #define USE_DISPLAY                            // Add SPI Display support for 320x240 and 480x320 TFT
-  #endif
-    #define USE_DISPLAY_ILI9341                  // [DisplayModel 4] Enable ILI9341 Tft 480x320 display (+19k code)
-//    #define USE_DISPLAY_EPAPER_29                // [DisplayModel 5] Enable e-paper 2.9 inch display (+19k code)
-//    #define USE_DISPLAY_EPAPER_42                // [DisplayModel 6] Enable e-paper 4.2 inch display
-//    #define USE_DISPLAY_ILI9488                  // [DisplayModel 8] [I2cDriver38] (Touch)
-//    #define USE_DISPLAY_SSD1351                  // [DisplayModel 9]
-//    #define USE_DISPLAY_RA8876                   // [DisplayModel 10] [I2cDriver39] (Touch)
+//  #define USE_NRF24                              // Add SPI support for NRF24L01(+) (+2k6 code)
+  #ifdef USE_NRF24
+    #define USE_MIBLE                            // BLE-bridge for some Mijia-BLE-sensors (+4k7 code)
+  #else
+    #ifndef USE_DISPLAY
+      #define USE_DISPLAY                        // Add SPI Display support for 320x240 and 480x320 TFT
+    #endif
+      #define USE_DISPLAY_ILI9341                // [DisplayModel 4] Enable ILI9341 Tft 480x320 display (+19k code)
+//      #define USE_DISPLAY_EPAPER_29              // [DisplayModel 5] Enable e-paper 2.9 inch display (+19k code)
+//      #define USE_DISPLAY_EPAPER_42              // [DisplayModel 6] Enable e-paper 4.2 inch display
+//      #define USE_DISPLAY_ILI9488                // [DisplayModel 8] [I2cDriver38] (Touch)
+//      #define USE_DISPLAY_SSD1351                // [DisplayModel 9]
+//      #define USE_DISPLAY_RA8876                 // [DisplayModel 10] [I2cDriver39] (Touch)
+  #endif  // USE_NRF24
 #endif  // USE_SPI
 
 // -- Serial sensors ------------------------------
@@ -474,6 +481,8 @@
 //  #define USE_PN532_DATA_RAW                     // Allow DATA block to be used by non-alpha-numberic data (+ 80 bytes code, 48 bytes ram)
 //#define USE_RDM6300                              // Add support for RDM6300 125kHz RFID Reader (+0k8)
 //#define USE_IBEACON                              // Add support for bluetooth LE passive scan of ibeacon devices (uses HM17 module)
+//#define USE_GPS                                  // Add support for GPS and NTP Server for becoming Stratus 1 Time Source (+ 3.1kb flash, +132 bytes RAM)
+//  #define USE_FLOG                               // Add support for GPS logging in OTA's Flash (Experimental) (+ 2.9kb flash, +8 bytes RAM)
 
 // -- Power monitoring sensors --------------------
 #define USE_ENERGY_MARGIN_DETECTION              // Add support for Energy Margin detection (+1k6 code)
@@ -533,6 +542,7 @@
   #define USE_ZIGBEE_PRECFGKEY_L 0x0F0D0B0907050301L  // note: changing requires to re-pair all devices
   #define USE_ZIGBEE_PRECFGKEY_H 0x0D0C0A0806040200L  // note: changing requires to re-pair all devices
   #define USE_ZIGBEE_PERMIT_JOIN false           // don't allow joining by default
+  #define USE_ZIGBEE_COALESCE_ATTR_TIMER 350     // timer to coalesce attribute values (in ms)
 
 // -- Other sensors/drivers -----------------------
 
@@ -574,7 +584,7 @@
  * See RELEASENOTES.md for selected features
 \*********************************************************************************************/
 
-//#define FIRMWARE_BASIC                           // Create tasmota-basic with no sensors
+//#define FIRMWARE_LITE                            // Create tasmota-lite with no sensors
 //#define FIRMWARE_SENSORS                         // Create tasmota-sensors with useful sensors enabled
 //#define FIRMWARE_KNX_NO_EMULATION                // Create tasmota-knx with KNX but without Emulation
 //#define FIRMWARE_DISPLAYS                        // Create tasmota-display with display drivers enabled

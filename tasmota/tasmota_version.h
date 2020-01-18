@@ -20,9 +20,11 @@
 #ifndef _TASMOTA_VERSION_H_
 #define _TASMOTA_VERSION_H_
 
-const uint32_t VERSION = 0x07010204;
+const uint32_t VERSION = 0x08010004;
 //STB mod
-#define STB_VERSION         0x0118
+#define STB_VERSION         0x0119
 //end
+// Lowest compatible version
+const uint32_t VERSION_COMPATIBLE = 0x07010006;
 
 #endif  // _TASMOTA_VERSION_H_

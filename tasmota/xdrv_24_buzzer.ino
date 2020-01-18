@@ -1,7 +1,7 @@
 /*
   xdrv_24_Buzzer.ino - buzzer support for Tasmota
 
-  Copyright (C) 2019  Theo Arends
+  Copyright (C) 2020  Theo Arends
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -39,7 +39,7 @@ struct BUZZER {
 
 void BuzzerOff(void)
 {
-  digitalWrite(pin[GPIO_BUZZER], Buzzer.inverted);  // Buzzer Off
+  DigitalWrite(GPIO_BUZZER, Buzzer.inverted);  // Buzzer Off
 }
 
 //void BuzzerBeep(uint32_t count = 1, uint32_t on = 1, uint32_t off = 1, uint32_t tune = 0);
@@ -124,7 +124,7 @@ void BuzzerEvery100mSec(void)
           Buzzer.duration = Buzzer.set[Buzzer.state];
         }
       }
-      digitalWrite(pin[GPIO_BUZZER], (Buzzer.inverted) ? !Buzzer.state : Buzzer.state);
+      DigitalWrite(GPIO_BUZZER, (Buzzer.inverted) ? !Buzzer.state : Buzzer.state);
     } else {
       Buzzer.enable = false;
     }

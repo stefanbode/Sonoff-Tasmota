@@ -1,7 +1,7 @@
 /*
   en-GB.h - localization for English - United Kingdom for Tasmota
 
-  Copyright (C) 2019  Theo Arends
+  Copyright (C) 2020  Theo Arends
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -28,7 +28,7 @@
  * Use online command StateText to translate ON, OFF, HOLD and TOGGLE.
  * Use online command Prefix to translate cmnd, stat and tele.
  *
- * Updated until v6.2.1.11
+ * Updated until v8.0.0.0
 \*********************************************************************/
 
 //#define LANGUAGE_MODULE_NAME         // Enable to display "Module Generic" (ie Spanish), Disable to display "Generic Module" (ie English)
@@ -74,6 +74,7 @@
 #define D_CORS_DOMAIN "CORS Domain"
 #define D_COUNT "Count"
 #define D_COUNTER "Counter"
+#define D_CT_POWER "CT Power"
 #define D_CURRENT "Current"          // As in Voltage and Current
 #define D_DATA "Data"
 #define D_DARKLIGHT "Dark"
@@ -83,7 +84,7 @@
 #define D_DNS_SERVER "DNS Server"
 #define D_DONE "Done"
 #define D_DST_TIME "DST"
-#define D_ECO2 "eCO2"
+#define D_ECO2 "eCO₂"
 #define D_EMULATION "Emulation"
 #define D_ENABLED "Enabled"
 #define D_ERASE "Erase"
@@ -113,6 +114,7 @@
 #define D_LIGHT "Light"
 #define D_LWT "LWT"
 #define D_MODULE "Module"
+#define D_MOISTURE "Moisture"
 #define D_MQTT "MQTT"
 #define D_MULTI_PRESS "multi-press"
 #define D_NOISE "Noise"
@@ -353,6 +355,7 @@
 #define D_UPLOAD_ERR_11 "Failed to erase RF chip"
 #define D_UPLOAD_ERR_12 "Failed to write to RF chip"
 #define D_UPLOAD_ERR_13 "Failed to decode RF firmware"
+#define D_UPLOAD_ERR_14 "Not compatible"
 #define D_UPLOAD_ERROR_CODE "Upload error code"
 
 #define D_ENTER_COMMAND "Enter command"
@@ -475,7 +478,7 @@
 // xsns_18_pms5003.ino
 #define D_STANDARD_CONCENTRATION "CF-1 PM"     // Standard Particle CF-1 Particle Matter
 #define D_ENVIRONMENTAL_CONCENTRATION "PM"     // Environmetal Particle Matter
-#define D_PARTICALS_BEYOND "Particals"
+#define D_PARTICALS_BEYOND "Particles"
 
 // xsns_32_mpu6050.ino
 #define D_AX_AXIS "Accel. X-Axis"
@@ -629,23 +632,25 @@
 #define D_SENSOR_SLAVE_TX    "Slave TX"
 #define D_SENSOR_SLAVE_RX    "Slave RX"
 #define D_SENSOR_SLAVE_RESET "Slave RST"
+#define D_SENSOR_GPS_RX        "GPS RX"
+#define D_SENSOR_GPS_TX        "GPS TX"
 
 // Units
 #define D_UNIT_AMPERE "A"
 #define D_UNIT_CENTIMETER "cm"
 #define D_UNIT_HERTZ "Hz"
-#define D_UNIT_HOUR "Hr"
+#define D_UNIT_HOUR "h"
 #define D_UNIT_GALLONS "gal"
 #define D_UNIT_GALLONS_PER_MIN "g/m"
 #define D_UNIT_INCREMENTS "inc"
 #define D_UNIT_KILOGRAM "kg"
 #define D_UNIT_KILOMETER_PER_HOUR "km/h"  // or "km/h"
-#define D_UNIT_KILOOHM "kOhm"
+#define D_UNIT_KILOOHM "kΩ"
 #define D_UNIT_KILOWATTHOUR "kWh"
 #define D_UNIT_LUX "lx"
-#define D_UNIT_MICROGRAM_PER_CUBIC_METER "ug/m3"
-#define D_UNIT_MICROMETER "um"
-#define D_UNIT_MICROSECOND "us"
+#define D_UNIT_MICROGRAM_PER_CUBIC_METER "µg/m³"
+#define D_UNIT_MICROMETER "µm"
+#define D_UNIT_MICROSECOND "µs"
 #define D_UNIT_MILLIAMPERE "mA"
 #define D_UNIT_MILLIMETER "mm"
 #define D_UNIT_MILLIMETER_MERCURY "mmHg"
@@ -697,5 +702,18 @@
 #define D_SOLAX_ERROR_6   "Over Temperature Fault"
 #define D_SOLAX_ERROR_7   "Fan Fault"
 #define D_SOLAX_ERROR_8   "Other Device Fault"
+
+//xdrv_10_scripter.ino
+#define D_CONFIGURE_SCRIPT     "Edit script"
+#define D_SCRIPT               "edit script"
+#define D_SDCARD_UPLOAD        "file upload"
+#define D_SDCARD_DIR           "sd card directory"
+#define D_UPL_DONE             "Done"
+#define D_SCRIPT_CHARS_LEFT    "chars left"
+#define D_SCRIPT_CHARS_NO_MORE "no more chars"
+#define D_SCRIPT_DOWNLOAD      "Download"
+#define D_SCRIPT_ENABLE        "script enable"
+#define D_SCRIPT_UPLOAD        "Upload"
+#define D_SCRIPT_UPLOAD_FILES  "Upload files"
 
 #endif  // _LANGUAGE_EN_GB_H_

@@ -1,7 +1,7 @@
 /*
   xdrv_09_timers.ino - timer support for Tasmota
 
-  Copyright (C) 2019  Theo Arends
+  Copyright (C) 2020  Theo Arends
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -364,7 +364,7 @@ void CmndTimer(void)
 #if defined(USE_RULES)==0 && defined(USE_SCRIPT)==0
         if (devices_present) {
 #endif
-          char dataBufUc[XdrvMailbox.data_len];
+          char dataBufUc[XdrvMailbox.data_len + 1];
           UpperCase(dataBufUc, XdrvMailbox.data);
           StaticJsonBuffer<256> jsonBuffer;
           JsonObject& root = jsonBuffer.parseObject(dataBufUc);
@@ -733,12 +733,13 @@ void HandleTimerConfiguration(void)
 void TimerSaveSettings(void)
 {
   char tmp[MAX_TIMERS *12];  // Need space for MAX_TIMERS x 10 digit numbers separated by a comma
+  char message[LOGSZ];
   Timer timer;
 
   Settings.flag3.timers_enable = WebServer->hasArg("e0");  // CMND_TIMERS
   WebGetArg("t0", tmp, sizeof(tmp));
   char *p = tmp;
-  snprintf_P(log_data, sizeof(log_data), PSTR(D_LOG_MQTT D_CMND_TIMERS " %d"), Settings.flag3.timers_enable);  // CMND_TIMERS
+  snprintf_P(message, sizeof(message), PSTR(D_LOG_MQTT D_CMND_TIMERS " %d"), Settings.flag3.timers_enable);  // CMND_TIMERS
   for (uint32_t i = 0; i < MAX_TIMERS; i++) {
     timer.data = strtol(p, &p, 10);
     p++;  // Skip comma
@@ -747,9 +748,9 @@ void TimerSaveSettings(void)
       Settings.timer[i].data = timer.data;
       if (flag) TimerSetRandomWindow(i);
     }
-    snprintf_P(log_data, sizeof(log_data), PSTR("%s,0x%08X"), log_data, Settings.timer[i].data);
+    snprintf_P(message, sizeof(message), PSTR("%s,0x%08X"), message, Settings.timer[i].data);
   }
-  AddLog(LOG_LEVEL_DEBUG);
+  AddLog_P(LOG_LEVEL_DEBUG, message);
 }
 #endif  // USE_TIMERS_WEB
 #endif  // USE_WEBSERVER

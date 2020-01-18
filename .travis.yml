@@ -7,15 +7,12 @@ install:
   - platformio upgrade
   - platformio update
 
-cache:
-  directories:
-  - .cache
-  - $HOME/.platformio
+cache: false
 
 env:
   - ENV=tasmota
   - ENV=tasmota-minimal
-  - ENV=tasmota-basic
+  - ENV=tasmota-lite
   - ENV=tasmota-knx
   - ENV=tasmota-sensors
   - ENV=tasmota-display

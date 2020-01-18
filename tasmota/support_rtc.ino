@@ -1,7 +1,7 @@
 /*
   support_rtc.ino - Real Time Clock support for Tasmota
 
-  Copyright (C) 2019  Theo Arends
+  Copyright (C) 2020  Theo Arends
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -396,9 +396,9 @@ void RtcSecond(void)
         Rtc.daylight_saving_time = RuleToTime(Settings.tflag[1], RtcTime.year);
         Rtc.standard_time = RuleToTime(Settings.tflag[0], RtcTime.year);
 
-        // Do not use AddLog here if syslog is enabled. UDP will force exception 9
-  //      AddLog_P2(LOG_LEVEL_DEBUG, PSTR(D_LOG_APPLICATION "(" D_UTC_TIME ") %s, (" D_DST_TIME ") %s, (" D_STD_TIME ") %s"), GetTime(0).c_str(), GetTime(2).c_str(), GetTime(3).c_str());
-        ntp_synced_message = true;
+        // Do not use AddLog_P2 here (interrupt routine) if syslog or mqttlog is enabled. UDP/TCP will force exception 9
+        PrepLog_P2(LOG_LEVEL_DEBUG, PSTR("NTP: Drift %d, (" D_UTC_TIME ") %s, (" D_DST_TIME ") %s, (" D_STD_TIME ") %s"),
+          DriftTime(), GetTime(0).c_str(), GetTime(2).c_str(), GetTime(3).c_str());
 
         if (Rtc.local_time < START_VALID_TIME) {  // 2016-01-01
           rules_flag.time_init = 1;
@@ -460,7 +460,9 @@ void RtcSetTime(uint32_t epoch)
   if (epoch < START_VALID_TIME) {  // 2016-01-01
     Rtc.user_time_entry = false;
     ntp_force_sync = true;
+    sntp_init();
   } else {
+    sntp_stop();
     Rtc.user_time_entry = true;
     Rtc.utc_time = epoch -1;    // Will be corrected by RtcSecond
   }
@@ -469,9 +471,9 @@ void RtcSetTime(uint32_t epoch)
 
 void RtcInit(void)
 {
-  sntp_setservername(0, Settings.ntp_server[0]);
-  sntp_setservername(1, Settings.ntp_server[1]);
-  sntp_setservername(2, Settings.ntp_server[2]);
+  sntp_setservername(0, SettingsText(SET_NTPSERVER1));
+  sntp_setservername(1, SettingsText(SET_NTPSERVER2));
+  sntp_setservername(2, SettingsText(SET_NTPSERVER3));
   sntp_stop();
   sntp_set_timezone(0);      // UTC time
   sntp_init();

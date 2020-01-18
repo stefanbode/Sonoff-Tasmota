@@ -1,7 +1,7 @@
 /*
   sv-SE.h - localization for Swedish - Svenska for Tasmota
 
-  Copyright (C) 2019  Gunnar Norin
+  Copyright (C) 2020  Gunnar Norin
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -74,6 +74,7 @@
 #define D_CORS_DOMAIN "CORS Domain"
 #define D_COUNT "Räkna"
 #define D_COUNTER "Räknare"
+#define D_CT_POWER "CT Power"
 #define D_CURRENT "Ström"          // As in Voltage and Current
 #define D_DATA "Data"
 #define D_DARKLIGHT "Mörkt"
@@ -83,7 +84,7 @@
 #define D_DNS_SERVER "DNS-server"
 #define D_DONE "Gjort"
 #define D_DST_TIME "DST"
-#define D_ECO2 "eCO2"
+#define D_ECO2 "eCO₂"
 #define D_EMULATION "Emulation"
 #define D_ENABLED "Aktiverad"
 #define D_ERASE "Ta bort"
@@ -113,6 +114,7 @@
 #define D_LIGHT "Ljus"
 #define D_LWT "LWT"
 #define D_MODULE "Modul"
+#define D_MOISTURE "Moisture"
 #define D_MQTT "MQTT"
 #define D_MULTI_PRESS "fler tryck"
 #define D_NOISE "Oväsen"
@@ -353,6 +355,7 @@
 #define D_UPLOAD_ERR_11 "Misslyckades rensa RF chip"
 #define D_UPLOAD_ERR_12 "Misslyckades skriva till RF chip"
 #define D_UPLOAD_ERR_13 "Misslyckades avkoda RF firmware"
+#define D_UPLOAD_ERR_14 "Not compatible"
 #define D_UPLOAD_ERROR_CODE "Uppladdningsfelkod"
 
 #define D_ENTER_COMMAND "Ange kommando"
@@ -629,6 +632,8 @@
 #define D_SENSOR_SLAVE_TX    "Slave TX"
 #define D_SENSOR_SLAVE_RX    "Slave RX"
 #define D_SENSOR_SLAVE_RESET "Slave RST"
+#define D_SENSOR_GPS_RX        "GPS RX"
+#define D_SENSOR_GPS_TX        "GPS TX"
 
 // Units
 #define D_UNIT_AMPERE "A"
@@ -640,12 +645,12 @@
 #define D_UNIT_INCREMENTS "ink"
 #define D_UNIT_KILOGRAM "kg"
 #define D_UNIT_KILOMETER_PER_HOUR "km/h"  // or "km/h"
-#define D_UNIT_KILOOHM "kOhm"
+#define D_UNIT_KILOOHM "kΩ"
 #define D_UNIT_KILOWATTHOUR "kWh"
 #define D_UNIT_LUX "lx"
-#define D_UNIT_MICROGRAM_PER_CUBIC_METER "ug/m3"
-#define D_UNIT_MICROMETER "um"
-#define D_UNIT_MICROSECOND "us"
+#define D_UNIT_MICROGRAM_PER_CUBIC_METER "µg/m³"
+#define D_UNIT_MICROMETER "µm"
+#define D_UNIT_MICROSECOND "µs"
 #define D_UNIT_MILLIAMPERE "mA"
 #define D_UNIT_MILLIMETER "mm"
 #define D_UNIT_MILLIMETER_MERCURY "mmHg"
@@ -697,5 +702,18 @@
 #define D_SOLAX_ERROR_6   "Over Temperature Fault"
 #define D_SOLAX_ERROR_7   "Fan Fault"
 #define D_SOLAX_ERROR_8   "Other Device Fault"
+
+//xdrv_10_scripter.ino
+#define D_CONFIGURE_SCRIPT     "Edit script"
+#define D_SCRIPT               "edit script"
+#define D_SDCARD_UPLOAD        "file upload"
+#define D_SDCARD_DIR           "sd card directory"
+#define D_UPL_DONE             "Done"
+#define D_SCRIPT_CHARS_LEFT    "chars left"
+#define D_SCRIPT_CHARS_NO_MORE "no more chars"
+#define D_SCRIPT_DOWNLOAD      "Download"
+#define D_SCRIPT_ENABLE        "script enable"
+#define D_SCRIPT_UPLOAD        "Upload"
+#define D_SCRIPT_UPLOAD_FILES  "Upload files"
 
 #endif  // _LANGUAGE_SV_SE_H_

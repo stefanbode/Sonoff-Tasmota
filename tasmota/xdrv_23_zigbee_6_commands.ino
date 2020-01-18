@@ -1,7 +1,7 @@
 /*
   xdrv_23_zigbee_converters.ino - zigbee support for Tasmota
 
-  Copyright (C) 2019  Theo Arends and Stephan Hadinger
+  Copyright (C) 2020  Theo Arends and Stephan Hadinger
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -46,6 +46,64 @@ const Z_CommandConverter Z_Commands[] = {
   { "ShutterLift",  "0102!05xx"},           // Lift percentage, 0%=open, 100%=closed
   { "ShutterTilt",  "0102!08xx"},           // Tilt percentage
 };
+
+#define ZLE(x) ((x) & 0xFF), ((x) >> 8)     // Little Endian
+
+// Below are the attributes we wand to read from each cluster
+const uint8_t CLUSTER_0006[] = { ZLE(0x0000) };    // Power
+const uint8_t CLUSTER_0008[] = { ZLE(0x0000) };    // CurrentLevel
+const uint8_t CLUSTER_0009[] = { ZLE(0x0000) };    // AlarmCount
+const uint8_t CLUSTER_0300[] = { ZLE(0x0000), ZLE(0x0001), ZLE(0x0003), ZLE(0x0004), ZLE(0x0007) };    // Hue, Sat, X, Y, CT
+
+int32_t Z_ReadAttrCallback(uint16_t shortaddr, uint16_t cluster, uint16_t endpoint, uint32_t value) {
+  size_t         attrs_len = 0;
+  const uint8_t* attrs = nullptr;
+
+  switch (cluster) {
+    case 0x0006:                              // for On/Off
+      attrs = CLUSTER_0006;
+      attrs_len = sizeof(CLUSTER_0006);
+      break;
+    case 0x0008:                              // for Dimmer
+      attrs = CLUSTER_0008;
+      attrs_len = sizeof(CLUSTER_0008);
+      break;
+    case 0x0009:                              // for Alarms
+      attrs = CLUSTER_0009;
+      attrs_len = sizeof(CLUSTER_0009);
+      break;
+    case 0x0300:                              // for Lights
+      attrs = CLUSTER_0300;
+      attrs_len = sizeof(CLUSTER_0300);
+      break;
+  }
+  if (attrs) {
+    ZigbeeZCLSend(shortaddr, cluster, endpoint, ZCL_READ_ATTRIBUTES, false, attrs, attrs_len, false /* we do want a response */);
+  }
+}
+
+
+// set a timer to read back the value in the future
+void zigbeeSetCommandTimer(uint16_t shortaddr, uint16_t cluster, uint16_t endpoint) {
+  uint32_t wait_ms = 0;
+
+  switch (cluster) {
+    case 0x0006:        // for On/Off
+    case 0x0009:        // for Alamrs
+      wait_ms = 200;    // wait 0.2 s
+      break;
+    case 0x0008:        // for Dimmer
+    case 0x0300:        // for Color
+      wait_ms = 1050;   // wait 1.0 s
+      break;
+    case 0x0102:        // for Shutters
+      wait_ms = 10000;  // wait 10.0 s
+      break;
+  }
+  if (wait_ms) {
+    zigbee_devices.setTimer(shortaddr, wait_ms, cluster, endpoint, 0 /* value */, &Z_ReadAttrCallback);
+  }
+}
 
 const __FlashStringHelper* zigbeeFindCommand(const char *command) {
   char parm_uc[16];   // used to convert JSON keys to uppercase
@@ -114,6 +172,7 @@ const uint8_t kZ_Numbers[] PROGMEM = { 0,0,0,0,0,
                                        2,2,
                                        255 };
 
+// Convert an alias like "On" to the corresponding number
 uint32_t ZigbeeAliasOrNumber(const char *state_text) {
   char command[16];
   int state_number = GetCommandCode(command, sizeof(command), state_text, kZ_Alias);

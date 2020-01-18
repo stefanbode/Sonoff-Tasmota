@@ -2,8 +2,6 @@
 
 # RELEASE NOTES
 
-### Sonoff-Tasmota is now Tasmota
-
 ## Migration Information
 
 See [migration path](https://tasmota.github.io/docs/#/Upgrading?id=migration-path) for instructions how to migrate to a major version. Pay attention to the following version breaks due to dynamic settings updates:
@@ -13,6 +11,13 @@ See [migration path](https://tasmota.github.io/docs/#/Upgrading?id=migration-pat
 3. Migrate to **Sonoff-Tasmota 5.14**
 4. Migrate to **Sonoff-Tasmota 6.x**
 5. Migrate to **Tasmota 7.x**
+
+--- Major change in parameter storage layout ---
+
+6. Migrate to **Tasmota 8.1**
+7. Migrate to **Tasmota 8.x**
+
+While fallback or downgrading is common practice it was never supported due to Settings additions or changes in newer releases. Starting with release **v8.1.0 Doris** the Settings are re-allocated in such a way that fallback is only allowed and possible to release **v7.2.0 Constance**. Once at v7.2.0 you're on your own when downgrading even further.
 
 ## Supported Core versions
 
@@ -34,7 +39,7 @@ The following binary downloads have been compiled with ESP8266/Arduino library c
 
 - **tasmota.bin** = The Tasmota version with sensors. **RECOMMENDED RELEASE BINARY**
 - **tasmota-BG.bin** to **tasmota-TW.bin** = The Tasmota version in different languages.
-- **tasmota-basic.bin** = The Basic version without most sensors.
+- **tasmota-lite.bin** = The Lite version without most sensors.
 - **tasmota-knx.bin** = The Knx version without some features but adds KNX support.
 - **tasmota-sensors.bin** = The Sensors version adds more useful sensors.
 - **tasmota-ir** = The InfraRed Receiver and transmitter version allowing all available protocols provided by library IRremoteESP8266 but without most other features.
@@ -47,23 +52,31 @@ The following binary downloads have been compiled with ESP8266/Arduino library c
 
 ## Changelog
 
-### Version 7.1.2.4
+### Version 8.1.0.4
 
-- Change Exception reporting removing exception details from ``Status 1`` and consolidated in ``Status 12`` if available
-- Change HTTP CORS from command ``SetOption73 0/1`` to ``Cors <cors_domain>`` allowing user control of specific CORS domain by Shantur Rathore (#7066)
-- Change GUI Shutter button text to Up and Down Arrows based on PR by Xavier Muller (#7166)
-- Change amount of supported DHT sensors from 3 to 4 by Xavier Muller (#7167)
-- Fix flashing H801 led at boot by Stefan Hadinger (#7165, #649)
-- Fix duplicated ``Backlog`` when using Event inside a Backlog by Adrian Scillato (#7178, #7147)
-- Fix Gui Timer when using a negative zero offset of -00:00 by Peter Ooms (#7174)
-- Add command ``SerialConfig 0..23`` or ``SerialConfig 8N1`` to select Serial Config based in PR by Luis Teixeira (#7108)
-- Add rule var ``%topic%`` by Adrian Scillato (#5522)
-- Add rule triggers ``tele-wifi1#xxx`` by Adrian Scillato (#7093)
-- Add SML bus decoder syntax support for byte order by Gerhard Mutz (#7112)
-- Add experimental support for stepper motor shutter control by Stefan Bode
-- Add optional USE_MQTT_TLS to tasmota-minimal.bin by Bohdan Kmit (#7115)
-- Add save call stack in RTC memory in case of crash, command ``Status 12`` to dump the stack by Stefan Hadinger
-- Add Home Assistant force update by Frederico Leoni (#7140, #7074)
-- Add Wifi Signal Strength in dBm in addition to RSSI Wifi Experience by Andreas Schultz (#7145)
-- Add Yaw, Pitch and Roll support for MPU6050 by Philip Barclay (#7058)
-- Add reporting of raw weight to JSON from HX711 to overcome auto-tare functionality by @tobox (#7171)
+- Change Lights: simplified gamma correction and 10 bits internal computation
+- Change commands ``Prefix``, ``Ssid``, ``StateText``, ``NTPServer``, and ``FriendlyName`` displaying all items
+- Change IRremoteESP8266 library updated to v2.7.2
+- Fix Sonoff Bridge, Sc, L1, iFan03 and CSE7766 serial interface to forced speed, config and disable logging
+- Fix commands ``Display`` and ``Counter`` from overruling command processing (#7322)
+- Fix ``White`` added to light status (#7142)
+- Fix Improved fade linearity with gamma correction
+- Fix LCD line and column positioning (#7387)
+- Fix Display handling of hexadecimal escape characters (#7387)
+- Fix ``WakeUp <x>`` ignores provided value (#7473)
+- Fix exception 9 restart on log message in Ticker interrupt service routines NTP, Wemos and Hue emulation (#7496)
+- Fix ``PowerDelta`` zero power detection (#7515)
+- Add command ``SetOption79 0/1`` to enable reset of counters at teleperiod time by Andre Thomas (#7355)
+- Add command ``SetOption82 0/1`` to limit the CT range for Alexa to 200..380
+- Add command ``ShutterButton <parameters>`` to control shutter(s) by to-scho (#7403)
+- Add ``SwitchMode 8`` ToggleMulti, ``SwitchMode 9`` FollowMulti and ``SwitchMode 10`` FollowMultiInverted (#7522)
+- Add SerialConfig to ``Status 1``
+- Add WifiPower to ``Status 5``
+- Add support for DS1624, DS1621 Temperature sensor by Leonid Myravjev
+- Add Zigbee attribute decoder for Xiaomi Aqara Cube
+- Add support for ``AdcParam`` parameters to control ADC0 Current Transformer Apparent Power formula by Jodi Dillon (#7100)
+- Add optional support for Prometheus using file xsns_91_prometheus.ino (#7216)
+- Add experimental support for NRF24L01 as BLE-bridge for Mijia Bluetooth sensors by Christian Baars (#7394)
+- Add support to BMP driver to enter reset state (sleep enable) when deep sleep is used in Tasmota
+- Add support for gzipped binaries
+- Add web page sliders when ``SetOption37 128`` is active allowing control of white(s)
