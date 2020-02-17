@@ -102,8 +102,8 @@ typedef union {                            // Restricted by MISRA-C Rule 18.4 bu
   uint32_t data;                           // Allow bit manipulation using SetOption
   struct {                                 // SetOption82 .. SetOption113
     uint32_t alexa_ct_range : 1;           // bit 0 (v8.1.0.2)   - SetOption82 - Reduced CT range for Alexa
-    uint32_t zigbee_use_names : 1;         // bit 1 (V8.1.0.4)   - SetOption83 - Use FriendlyNames instead of ShortAddresses when possible
-    uint32_t spare02 : 1;
+    uint32_t zigbee_use_names : 1;         // bit 1 (v8.1.0.4)   - SetOption83 - Use FriendlyNames instead of ShortAddresses when possible
+    uint32_t awsiot_shadow : 1;            // bit 2 (v8.1.0.5)   - SetOption84 - (AWS IoT) publish MQTT state to a device shadow
     uint32_t spare03 : 1;
     uint32_t spare04 : 1;
     uint32_t spare05 : 1;
@@ -470,8 +470,10 @@ struct SYSCFG {
 //stb mod
   uint8_t       pulse_devider[MAX_COUNTERS];
 
-  uint8_t       free_ec7[210];             // EC7
+  uint8_t       free_f05[203];             // EC7
 //end
+  uint32_t      bootcount_reset_time;      // FD4
+  int           adc_param4;                // FD8
   uint32_t      shutter_button[MAX_KEYS];  // FDC
   uint32_t      i2c_drivers[3];            // FEC I2cDriver
   uint32_t      cfg_timestamp;             // FF8

@@ -92,9 +92,9 @@ uint32_t ResetReason(void)
     user_interface.h
     REASON_DEFAULT_RST      = 0,  // "Power on"                normal startup by power on
     REASON_WDT_RST          = 1,  // "Hardware Watchdog"       hardware watch dog reset
-    REASON_EXCEPTION_RST    = 2,  // "Exception"               exception reset, GPIO status won’t change
-    REASON_SOFT_WDT_RST     = 3,  // "Software Watchdog"       software watch dog reset, GPIO status won’t change
-    REASON_SOFT_RESTART     = 4,  // "Software/System restart" software restart ,system_restart , GPIO status won’t change
+    REASON_EXCEPTION_RST    = 2,  // "Exception"               exception reset, GPIO status wonâ€™t change
+    REASON_SOFT_WDT_RST     = 3,  // "Software Watchdog"       software watch dog reset, GPIO status wonâ€™t change
+    REASON_SOFT_RESTART     = 4,  // "Software/System restart" software restart ,system_restart , GPIO status wonâ€™t change
     REASON_DEEP_SLEEP_AWAKE = 5,  // "Deep-Sleep Wake"         wake up from deep-sleep
     REASON_EXT_SYS_RST      = 6   // "External System"         external system reset
   */
@@ -491,6 +491,16 @@ bool ParseIp(uint32_t* addr, const char* str)
     str++;                                   // Point to next character after separator
   }
   return (3 == i);
+}
+
+uint32_t ParseParameters(uint32_t count, uint32_t *params)
+{
+  char *p;
+  uint32_t i = 0;
+  for (char *str = strtok_r(XdrvMailbox.data, ", ", &p); str && i < count; str = strtok_r(nullptr, ", ", &p), i++) {
+    params[i] = strtoul(str, nullptr, 0);
+  }
+  return i;
 }
 
 // Function to parse & check if version_str is newer than our currently installed version.
@@ -1244,7 +1254,8 @@ void TemplateJson(void)
  * Sleep aware time scheduler functions borrowed from ESPEasy
 \*********************************************************************************************/
 
-inline int32_t TimeDifference(uint32_t prev, uint32_t next) {
+inline int32_t TimeDifference(uint32_t prev, uint32_t next)
+{
   return ((int32_t) (next - prev));
 }
 
@@ -1274,6 +1285,18 @@ void SetNextTimeInterval(unsigned long& timer, const unsigned long step)
   }
   // Try to get in sync again.
   timer = millis() + (step - passed);
+}
+
+int32_t TimePassedSinceUsec(uint32_t timestamp)
+{
+  return TimeDifference(timestamp, micros());
+}
+
+bool TimeReachedUsec(uint32_t timer)
+{
+  // Check if a certain timeout has been reached.
+  const long passed = TimePassedSinceUsec(timer);
+  return (passed >= 0);
 }
 
 /*********************************************************************************************\
@@ -1521,11 +1544,7 @@ bool I2cSetDevice(uint32_t addr)
     return false;       // If already active report as not present;
   }
   Wire.beginTransmission((uint8_t)addr);
-  bool result = (0 == Wire.endTransmission());
-  if (result) {
-    I2cSetActive(addr, 1);
-  }
-  return result;
+  return (0 == Wire.endTransmission());
 }
 #endif  // USE_I2C
 
@@ -1631,8 +1650,12 @@ void AddLog(uint32_t loglevel)
     if (!web_log_index) web_log_index++;   // Index 0 is not allowed as it is the end of char string
   }
 #endif  // USE_WEBSERVER
-  if (!global_state.mqtt_down && (loglevel <= Settings.mqttlog_level)) { MqttPublishLogging(mxtime); }
-  if (!global_state.wifi_down && (loglevel <= syslog_level)) { Syslog(); }
+  if (Settings.flag.mqtt_enabled &&        // SetOption3 - Enable MQTT
+      !global_state.mqtt_down &&
+      (loglevel <= Settings.mqttlog_level)) { MqttPublishLogging(mxtime); }
+
+  if (!global_state.wifi_down &&
+      (loglevel <= syslog_level)) { Syslog(); }
 }
 
 void AddLog_P(uint32_t loglevel, const char *formatP)

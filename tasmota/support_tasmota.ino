@@ -235,7 +235,8 @@ void SetDevicePower(power_t rpower, uint32_t source)
 void RestorePower(bool publish_power, uint32_t source)
 {
   if (power != last_power) {
-    SetDevicePower(last_power, source);
+    power = last_power;
+    SetDevicePower(power, source);
     if (publish_power) {
       MqttPublishAllPowerState();
     }
@@ -347,6 +348,11 @@ void SetLedPowerIdx(uint32_t led, uint32_t state)
     }
     DigitalWrite(GPIO_LED1 + led, bitRead(led_inverted, led) ? !state : state);
   }
+#ifdef USE_BUZZER
+  if (led == 0) {
+    BuzzerSetStateToLed(state);
+  }
+#endif // USE_BUZZER
 }
 
 void SetLedPower(uint32_t state)
@@ -382,6 +388,9 @@ void SetLedLink(uint32_t state)
     if (state) { state = 1; }
     digitalWrite(led_pin, (led_inv) ? !state : state);
   }
+#ifdef USE_BUZZER
+  BuzzerSetStateToLed(state);
+#endif // USE_BUZZER
 }
 
 void SetPulseTimer(uint32_t index, uint32_t time)
@@ -438,9 +447,9 @@ bool SendKey(uint32_t key, uint32_t device, uint32_t state)
 #ifdef USE_DOMOTICZ
     if (!(DomoticzSendKey(key, device, state, strlen(mqtt_data)))) {
 #endif  // USE_DOMOTICZ
-      MqttPublishDirect(stopic, ((key) ? Settings.flag.mqtt_switch_retain                         // CMND_SWITCHRETAIN
-                                       : Settings.flag.mqtt_button_retain) &&                     // CMND_BUTTONRETAIN
-                                       (state != POWER_HOLD || !Settings.flag3.no_hold_retain));  // SetOption62 - Don't use retain flag on HOLD messages
+      MqttPublish(stopic, ((key) ? Settings.flag.mqtt_switch_retain                         // CMND_SWITCHRETAIN
+                                 : Settings.flag.mqtt_button_retain) &&                     // CMND_BUTTONRETAIN
+                                 (state != POWER_HOLD || !Settings.flag3.no_hold_retain));  // SetOption62 - Don't use retain flag on HOLD messages
 #ifdef USE_DOMOTICZ
     }
 #endif  // USE_DOMOTICZ
@@ -664,8 +673,7 @@ bool MqttShowSensor(void)
 #else
     if (pin[GPIO_SWT1 +i] < 99) {
 #endif  // USE_TM1638
-      bool swm = ((FOLLOW_INV == Settings.switchmode[i]) || (PUSHBUTTON_INV == Settings.switchmode[i]) || (PUSHBUTTONHOLD_INV == Settings.switchmode[i]) || (FOLLOWMULTI_INV == Settings.switchmode[i]));
-      ResponseAppend_P(PSTR(",\"" D_JSON_SWITCH "%d\":\"%s\""), i +1, GetStateText(swm ^ SwitchLastState(i)));
+      ResponseAppend_P(PSTR(",\"" D_JSON_SWITCH "%d\":\"%s\""), i +1, GetStateText(SwitchState(i)));
     }
   }
   XsnsCall(FUNC_JSON_APPEND);
@@ -692,7 +700,12 @@ void MqttPublishSensor(void)
   }
 }
 
-/********************************************************************************************/
+/*********************************************************************************************\
+ * State loops
+\*********************************************************************************************/
+/*-------------------------------------------------------------------------------------------*\
+ * Every second
+\*-------------------------------------------------------------------------------------------*/
 
 void PerformEverySecond(void)
 {
@@ -713,6 +726,13 @@ void PerformEverySecond(void)
 #ifdef USE_DEEPSLEEP
     }
 #endif
+  }
+
+  if (mqtt_cmnd_blocked_reset) {
+    mqtt_cmnd_blocked_reset--;
+    if (!mqtt_cmnd_blocked_reset) {
+      mqtt_cmnd_blocked = 0;             // Clean up MQTT cmnd loop block
+    }
   }
 
   if (seriallog_timer) {
@@ -763,9 +783,6 @@ void PerformEverySecond(void)
   }
 }
 
-/*********************************************************************************************\
- * State loops
-\*********************************************************************************************/
 /*-------------------------------------------------------------------------------------------*\
  * Every 0.1 second
 \*-------------------------------------------------------------------------------------------*/
@@ -821,8 +838,6 @@ void Every250mSeconds(void)
 
   state_250mS++;
   state_250mS &= 0x3;
-
-  if (mqtt_cmnd_publish) mqtt_cmnd_publish--;             // Clean up
 
   if (!Settings.flag.global_state) {                      // Problem blinkyblinky enabled - SetOption31 - Control link led blinking
     if (global_state.data) {                              // Any problem

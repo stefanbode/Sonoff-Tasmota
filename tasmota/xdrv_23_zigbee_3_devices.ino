@@ -71,6 +71,8 @@ public:
   uint16_t isKnownIndex(uint32_t index) const;
   uint16_t isKnownFriendlyName(const char * name) const;
 
+  uint64_t getDeviceLongAddr(uint16_t shortaddr) const;
+
   // Add new device, provide ShortAddr and optional longAddr
   // If it is already registered, update information, otherwise create the entry
   void updateDevice(uint16_t shortaddr, uint64_t longaddr = 0);
@@ -123,6 +125,7 @@ public:
 
   // Mark data as 'dirty' and requiring to save in Flash
   void dirty(void);
+  void clean(void);   // avoid writing to flash the last changes
 
   // Find device by name, can be short_addr, long_addr, number_in_array or name
   uint16_t parseDeviceParam(const char * param, bool short_must_be_known = false) const;
@@ -135,12 +138,13 @@ private:
   static bool findInVector(const std::vector<T>  & vecOfElements, const T  & element);
 
   template < typename T>
-  static int32_t findEndpointInVector(const std::vector<T>  & vecOfElements, const T  & element);
+  static int32_t findEndpointInVector(const std::vector<T>  & vecOfElements, uint8_t element);
 
   // find the first endpoint match for a cluster
   static int32_t findClusterEndpoint(const std::vector<uint32_t>  & vecOfElements, uint16_t element);
 
   Z_Device & getShortAddr(uint16_t shortaddr);   // find Device from shortAddr, creates it if does not exist
+  const Z_Device & getShortAddrConst(uint16_t shortaddr) const ;   // find Device from shortAddr, creates it if does not exist
   Z_Device & getLongAddr(uint64_t longaddr);     // find Device from shortAddr, creates it if does not exist
 
   int32_t findShortAddr(uint16_t shortaddr) const;
@@ -159,6 +163,9 @@ private:
 
 Z_Devices zigbee_devices = Z_Devices();
 
+// Local coordinator information
+uint64_t localIEEEAddr = 0;
+
 // https://thispointer.com/c-how-to-find-an-element-in-vector-and-get-its-index/
 template < typename T>
 bool Z_Devices::findInVector(const std::vector<T>  & vecOfElements, const T  & element) {
@@ -173,12 +180,12 @@ bool Z_Devices::findInVector(const std::vector<T>  & vecOfElements, const T  & e
 }
 
 template < typename T>
-int32_t Z_Devices::findEndpointInVector(const std::vector<T>  & vecOfElements, const T  & element) {
+int32_t Z_Devices::findEndpointInVector(const std::vector<T>  & vecOfElements, uint8_t element) {
 	// Find given element in vector
 
   int32_t found = 0;
   for (auto &elem : vecOfElements) {
-    if ((elem >> 16) & 0xFF == element) { return found; }
+    if ( ((elem >> 16) & 0xFF) == element) { return found; }
     found++;
   }
 
@@ -325,6 +332,11 @@ uint16_t Z_Devices::isKnownFriendlyName(const char * name) const {
   }
 }
 
+uint64_t Z_Devices::getDeviceLongAddr(uint16_t shortaddr) const {
+  const Z_Device & device = getShortAddrConst(shortaddr);
+  return device.longaddr;
+}
+
 //
 // We have a seen a shortaddr on the network, get the corresponding
 //
@@ -334,8 +346,17 @@ Z_Device & Z_Devices::getShortAddr(uint16_t shortaddr) {
   if (found >= 0) {
     return _devices[found];
   }
-//Serial.printf("Device entry created for shortaddr = 0x%02X, found = %d\n", shortaddr, found);
+  //Serial.printf("Device entry created for shortaddr = 0x%02X, found = %d\n", shortaddr, found);
   return createDeviceEntry(shortaddr, 0);
+}
+// Same version but Const
+const Z_Device & Z_Devices::getShortAddrConst(uint16_t shortaddr) const {
+  if (!shortaddr) { return *(Z_Device*) nullptr; }   // this is not legal
+  int32_t found = findShortAddr(shortaddr);
+  if (found >= 0) {
+    return _devices[found];
+  }
+  return *((Z_Device*)nullptr);
 }
 
 // find the Device object by its longaddr (unique key if not null)
@@ -406,7 +427,7 @@ void Z_Devices::addEndoint(uint16_t shortaddr, uint8_t endpoint) {
   Z_Device &device = getShortAddr(shortaddr);
   if (&device == nullptr) { return; }                 // don't crash if not found
   _updateLastSeen(device);
-  if (findEndpointInVector(device.endpoints, ep_profile) < 0) {
+  if (findEndpointInVector(device.endpoints, endpoint) < 0) {
     device.endpoints.push_back(ep_profile);
     dirty();
   }
@@ -418,7 +439,7 @@ void Z_Devices::addEndointProfile(uint16_t shortaddr, uint8_t endpoint, uint16_t
   Z_Device &device = getShortAddr(shortaddr);
   if (&device == nullptr) { return; }                 // don't crash if not found
   _updateLastSeen(device);
-  int32_t found = findEndpointInVector(device.endpoints, ep_profile);
+  int32_t found = findEndpointInVector(device.endpoints, endpoint);
   if (found < 0) {
     device.endpoints.push_back(ep_profile);
     dirty();
@@ -469,22 +490,28 @@ void Z_Devices::setManufId(uint16_t shortaddr, const char * str) {
   Z_Device & device = getShortAddr(shortaddr);
   if (&device == nullptr) { return; }                 // don't crash if not found
   _updateLastSeen(device);
+  if (!device.manufacturerId.equals(str)) {
+    dirty();
+  }
   device.manufacturerId = str;
-  dirty();
 }
 void Z_Devices::setModelId(uint16_t shortaddr, const char * str) {
   Z_Device & device = getShortAddr(shortaddr);
   if (&device == nullptr) { return; }                 // don't crash if not found
   _updateLastSeen(device);
+  if (!device.modelId.equals(str)) {
+    dirty();
+  }
   device.modelId = str;
-  dirty();
 }
 void Z_Devices::setFriendlyName(uint16_t shortaddr, const char * str) {
   Z_Device & device = getShortAddr(shortaddr);
   if (&device == nullptr) { return; }                 // don't crash if not found
   _updateLastSeen(device);
+  if (!device.friendlyName.equals(str)) {
+    dirty();
+  }
   device.friendlyName = str;
-  dirty();
 }
 
 const String * Z_Devices::getFriendlyName(uint16_t shortaddr) const {
@@ -624,6 +651,16 @@ void Z_Devices::jsonAppend(uint16_t shortaddr, const JsonObject &values) {
   if (nullptr == device.json) {
     device.json = &(device.json_buffer->createObject());
   }
+  // Prepend Device, will be removed later if redundant
+  char sa[8];
+  snprintf_P(sa, sizeof(sa), PSTR("0x%04X"), shortaddr);
+  device.json->set(F(D_JSON_ZIGBEE_DEVICE), sa);
+  // Prepend Friendly Name if it has one
+  const String * fname = zigbee_devices.getFriendlyName(shortaddr);
+  if (fname) {
+    device.json->set(F(D_JSON_ZIGBEE_NAME), (char*)fname->c_str());   // (char*) forces ArduinoJson to make a copy of the cstring
+  }
+
   // copy all values from 'values' to 'json'
   CopyJsonObject(*device.json, values);
 }
@@ -643,13 +680,20 @@ void Z_Devices::jsonPublishFlush(uint16_t shortaddr) {
   const String * fname = zigbee_devices.getFriendlyName(shortaddr);
   bool use_fname = (Settings.flag4.zigbee_use_names) && (fname);    // should we replace shortaddr with friendlyname?
 
+  // if (use_fname) {
+  //   // we need to add the Device short_addr inside the JSON
+  //   char sa[8];
+  //   snprintf_P(sa, sizeof(sa), PSTR("0x%04X"), shortaddr);
+  //   json->set(F(D_JSON_ZIGBEE_DEVICE), sa);
+  // } else if (fname) {
+  //   json->set(F(D_JSON_NAME), (char*) fname);
+  // }
+
+  // Remove redundant "Name" or "Device"
   if (use_fname) {
-    // we need to add the Device short_addr inside the JSON
-    char sa[8];
-    snprintf_P(sa, sizeof(sa), PSTR("0x%04X"), shortaddr);
-    json->set(F(D_JSON_ZIGBEE_DEVICE), sa);
-  } else if (fname) {
-    json->set(F(D_JSON_NAME), (char*) fname);
+    json->remove(F(D_JSON_ZIGBEE_NAME));
+  } else {
+    json->remove(F(D_JSON_ZIGBEE_DEVICE));
   }
 
   String msg = "";
@@ -657,12 +701,24 @@ void Z_Devices::jsonPublishFlush(uint16_t shortaddr) {
   zigbee_devices.jsonClear(shortaddr);
 
   if (use_fname) {
-    Response_P(PSTR("{\"" D_CMND_ZIGBEE_RECEIVED "\":{\"%s\":%s}}"), fname->c_str(), msg.c_str());
+    Response_P(PSTR("{\"" D_JSON_ZIGBEE_RECEIVED "\":{\"%s\":%s}}"), fname->c_str(), msg.c_str());
+    MqttPublishPrefixTopic_P(TELE, PSTR(D_RSLT_SENSOR));
+    XdrvRulesProcess();
+    // DEPRECATED TODO
+    Response_P(PSTR("{\"" D_JSON_ZIGBEE_RECEIVED_LEGACY "\":{\"%s\":%s}}"), fname->c_str(), msg.c_str());
+    MqttPublishPrefixTopic_P(TELE, PSTR(D_RSLT_SENSOR));
+    XdrvRulesProcess();
   } else {
-    Response_P(PSTR("{\"" D_CMND_ZIGBEE_RECEIVED "\":{\"0x%04X\":%s}}"), shortaddr, msg.c_str());
+    Response_P(PSTR("{\"" D_JSON_ZIGBEE_RECEIVED "\":{\"0x%04X\":%s}}"), shortaddr, msg.c_str());
+    MqttPublishPrefixTopic_P(TELE, PSTR(D_RSLT_SENSOR));
+    XdrvRulesProcess();
+    // DEPRECATED TODO
+    Response_P(PSTR("{\"" D_JSON_ZIGBEE_RECEIVED_LEGACY "\":{\"0x%04X\":%s}}"), shortaddr, msg.c_str());
+    MqttPublishPrefixTopic_P(TELE, PSTR(D_RSLT_SENSOR));
+    XdrvRulesProcess();
   }
-  MqttPublishPrefixTopic_P(TELE, PSTR(D_RSLT_SENSOR));
-  XdrvRulesProcess();
+  // MqttPublishPrefixTopic_P(TELE, PSTR(D_RSLT_SENSOR));
+  // XdrvRulesProcess();
 }
 
 void Z_Devices::jsonPublishNow(uint16_t shortaddr, JsonObject & values) {
@@ -673,6 +729,9 @@ void Z_Devices::jsonPublishNow(uint16_t shortaddr, JsonObject & values) {
 
 void Z_Devices::dirty(void) {
   _saveTimer = kZigbeeSaveDelaySeconds * 1000 + millis();
+}
+void Z_Devices::clean(void) {
+  _saveTimer = 0;
 }
 
 // Parse the command parameters for either:

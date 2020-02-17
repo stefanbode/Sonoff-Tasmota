@@ -31,7 +31,7 @@
 //
 // [Array of devices]
 // [Offset = 2]
-// uint8  - length of revice record
+// uint8  - length of device record
 // uint16 - short address
 // uint64 - long IEEE address
 // uint8  - number of endpoints
@@ -43,6 +43,7 @@
 //
 // str    - ModelID (null terminated C string, 32 chars max)
 // str    - Manuf   (null terminated C string, 32 chars max)
+// str    - FriendlyName   (null terminated C string, 32 chars max)
 // reserved for extensions
 
 // Memory footprint
@@ -184,7 +185,7 @@ class SBuffer hibernateDevices(void) {
   // Log
   char *hex_char = (char*) malloc((buf_len * 2) + 2);
   if (hex_char) {
-    AddLog_P2(LOG_LEVEL_DEBUG, PSTR(D_LOG_ZIGBEE "ZigbeeFlashStore %s"),
+    AddLog_P2(LOG_LEVEL_DEBUG, PSTR(D_LOG_ZIGBEE "ZbFlashStore %s"),
                                     ToHex_P(buf.getBuffer(), buf_len, hex_char, (buf_len * 2) + 2));
     free(hex_char);
   }
@@ -268,6 +269,7 @@ void loadZigbeeDevices(void) {
     buf.addBuffer(z_dev_start + sizeof(z_flashdata_t), buf_len);
     AddLog_P2(LOG_LEVEL_INFO, PSTR(D_LOG_ZIGBEE "Zigbee devices data in Flash (%d bytes)"), buf_len);
     hidrateDevices(buf);
+    zigbee_devices.clean();   // don't write back to Flash what we just loaded
   } else {
     AddLog_P2(LOG_LEVEL_INFO, PSTR(D_LOG_ZIGBEE "No zigbee devices data in Flash"));
   }
@@ -308,6 +310,7 @@ void saveZigbeeDevices(void) {
 
 // Erase the flash area containing the ZigbeeData
 void eraseZigbeeDevices(void) {
+  zigbee_devices.clean();     // avoid writing data to flash after erase
   // first copy SPI buffer into ram
   uint8_t *spi_buffer = (uint8_t*) malloc(z_spi_len);
   if (!spi_buffer) {
