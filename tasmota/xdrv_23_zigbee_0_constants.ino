@@ -169,51 +169,14 @@ enum Z_configuration {
   ZNP_HAS_CONFIGURED = 0xF00
 };
 
-// enum Z_nvItemIds {
-//   SCENE_TABLE = 145,
-//   MIN_FREE_NWK_ADDR = 146,
-//   MAX_FREE_NWK_ADDR = 147,
-//   MIN_FREE_GRP_ID = 148,
-//   MAX_FREE_GRP_ID = 149,
-//   MIN_GRP_IDS = 150,
-//   MAX_GRP_IDS = 151,
-//   OTA_BLOCK_REQ_DELAY = 152,
-//   SAPI_ENDPOINT = 161,
-//   SAS_SHORT_ADDR = 177,
-//   SAS_EXT_PANID = 178,
-//   SAS_PANID = 179,
-//   SAS_CHANNEL_MASK = 180,
-//   SAS_PROTOCOL_VER = 181,
-//   SAS_STACK_PROFILE = 182,
-//   SAS_STARTUP_CTRL = 183,
-//   SAS_TC_ADDR = 193,
-//   SAS_TC_MASTER_KEY = 194,
-//   SAS_NWK_KEY = 195,
-//   SAS_USE_INSEC_JOIN = 196,
-//   SAS_PRECFG_LINK_KEY = 197,
-//   SAS_NWK_KEY_SEQ_NUM = 198,
-//   SAS_NWK_KEY_TYPE = 199,
-//   SAS_NWK_MGR_ADDR = 200,
-//   SAS_CURR_TC_MASTER_KEY = 209,
-//   SAS_CURR_NWK_KEY = 210,
-//   SAS_CURR_PRECFG_LINK_KEY = 211,
-//   TCLK_TABLE_START = 257,
-//   TCLK_TABLE_END = 511,
-//   APS_LINK_KEY_DATA_START = 513,
-//   APS_LINK_KEY_DATA_END = 767,
-//   DUPLICATE_BINDING_TABLE = 768,
-//   DUPLICATE_DEVICE_LIST = 769,
-//   DUPLICATE_DEVICE_LIST_KA_TIMEOUT = 770,
-//};
-
 //
 enum Z_Status {
-  Z_Success = 0x00,
-  Z_Failure = 0x01,
-  Z_InvalidParameter = 0x02,
-  Z_MemError = 0x03,
-  Z_Created = 0x09,
-  Z_BufferFull = 0x11
+  Z_SUCCESS = 0x00,
+  Z_FAILURE = 0x01,
+  Z_INVALIDPARAMETER = 0x02,
+  Z_MEMERROR = 0x03,
+  Z_CREATED = 0x09,
+  Z_BUFFERFULL = 0x11
 };
 
 enum Z_App_Profiles {
@@ -261,16 +224,14 @@ enum Z_Device_Ids {
   // 0x0403	IAS Warning Device
 };
 
-// enum class AddrMode : uint8_t {
-//   NotPresent = 0,
-//   Group = 1,
-//   ShortAddress = 2,
-//   IEEEAddress = 3,
-//   Broadcast = 0xFF
-// };
-//
-//
-//
+ enum Z_AddrMode : uint8_t {
+  Z_Addr_NotPresent = 0,
+  Z_Addr_Group = 1,
+  Z_Addr_ShortAddress = 2,
+  Z_Addr_IEEEAddress = 3,
+  Z_Addr_Broadcast = 0xFF
+};
+
 // Commands in the AF subsystem
 enum AfCommand : uint8_t {
   AF_REGISTER = 0x00,
@@ -286,7 +247,7 @@ enum AfCommand : uint8_t {
   AF_INCOMING_MSG = 0x81,
   AF_INCOMING_MSG_EXT = 0x82
 };
-//
+
 // Commands in the ZDO subsystem
 enum : uint8_t {
   ZDO_NWK_ADDR_REQ = 0x00,
@@ -371,7 +332,7 @@ enum ZdoStates {
   ZDO_DEV_ZB_COORD = 0x09,          // Started as a a Zigbee Coordinator
   ZDO_DEV_NWK_ORPHAN = 0x0A,        // Device has lost information about its parent.
 };
-//
+
 // Commands in the UTIL subsystem
 enum Z_Util {
   Z_UTIL_GET_DEVICE_INFO = 0x00,
@@ -424,7 +385,44 @@ enum ZCL_Global_Commands {
 
 };
 
-const uint16_t Z_ProfileIds[]   PROGMEM = { 0x0104, 0x0109, 0xA10E, 0xC05E };
-const char     Z_ProfileNames[] PROGMEM = "ZigBee Home Automation|ZigBee Smart Energy|ZigBee Green Power|ZigBee Light Link";
+#define ZF(s) static const char ZS_ ## s[] PROGMEM = #s;
+#define Z(s)  ZS_ ## s
+
+typedef struct Z_StatusLine {
+  uint32_t     status;          // no need to use uint8_t since it uses 32 bits anyways
+  const char * status_msg;
+} Z_StatusLine;
+
+// Undocumented Zigbee ZCL code here: https://github.com/dresden-elektronik/deconz-rest-plugin/wiki/Zigbee-Error-Codes-in-the-Log
+String getZigbeeStatusMessage(uint8_t status) {
+  static const char    StatusMsg[] PROGMEM = "SUCCESS|FAILURE|NOT_AUTHORIZED|RESERVED_FIELD_NOT_ZERO|MALFORMED_COMMAND|UNSUP_CLUSTER_COMMAND|UNSUP_GENERAL_COMMAND"
+                                             "|UNSUP_MANUF_CLUSTER_COMMAND|UNSUP_MANUF_GENERAL_COMMAND|INVALID_FIELD|UNSUPPORTED_ATTRIBUTE|INVALID_VALE|READ_ONLY"
+                                             "|INSUFFICIENT_SPACE|DUPLICATE_EXISTS|NOT_FOUND|UNREPORTABLE_ATTRIBUTE|INVALID_DATA_TYPE|INVALID_SELECTOR|WRITE_ONLY"
+                                             "|INCONSISTENT_STARTUP_STATE|DEFINED_OUT_OF_BAND|INCONSISTENT|ACTION_DENIED|TIMEOUT|ABORT|INVALID_IMAGE|WAIT_FOR_DATA"
+                                             "|NO_IMAGE_AVAILABLE|REQUIRE_MORE_IMAGE|NOTIFICATION_PENDING|HARDWARE_FAILURE|SOFTWARE_FAILURE|CALIBRATION_ERROR|UNSUPPORTED_CLUSTER|NO_ROUTE"
+                                             "|CHANNEL_ACCESS_FAILURE|NO_ACK|NO_APP_ACK|NO_ROUTE"
+                                             ;
+  static const uint8_t StatusIdx[] PROGMEM = { 0x00, 0x01, 0x7E, 0x7F, 0x80, 0x81, 0x82,
+                                               0x83, 0x84, 0x85, 0x86, 0x87, 0x88,
+                                               0x89, 0x8A, 0x8B, 0x8C, 0x8D, 0x8E, 0x8F,
+                                               0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97,
+                                               0x98, 0x99, 0x9A, 0xC0, 0xC1, 0xC2, 0xC3, 0xCD,
+                                               0xE1, 0xE9, 0xA7, 0xD0};
+
+  char msg[32];
+  int32_t idx = -1;
+  for (uint32_t i = 0; i < sizeof(StatusIdx); i++) {
+    if (status == pgm_read_byte(&StatusIdx[i])) {
+      idx = i;
+      break;
+    }
+  }
+  if (idx >= 0) {
+    GetTextIndexed(msg, sizeof(msg), idx, StatusMsg);
+  } else {
+    *msg = 0x00;    // empty string
+  }
+  return String(msg);
+}
 
 #endif // USE_ZIGBEE

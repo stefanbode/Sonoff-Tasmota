@@ -84,7 +84,9 @@ void Senseair250ms(void)              // Every 250 mSec
             break;
           case 2:                // 0x03 (3) READ_CO2 - fe 04 02 06 2c af 59
             senseair_co2 = value;
+#ifdef USE_LIGHT
             LightSetSignal(CO2_LOW, CO2_HIGH, senseair_co2);
+#endif  // USE_LIGHT
             break;
           case 3:                // 0x04 (4) READ_TEMPERATURE - S8: fe 84 02 f2 f1 - Illegal Data Address
             senseair_temperature = ConvertTemp((float)value / 100);
@@ -130,8 +132,8 @@ void Senseair250ms(void)              // Every 250 mSec
 void SenseairInit(void)
 {
   senseair_type = 0;
-  if ((pin[GPIO_SAIR_RX] < 99) && (pin[GPIO_SAIR_TX] < 99)) {
-    SenseairModbus = new TasmotaModbus(pin[GPIO_SAIR_RX], pin[GPIO_SAIR_TX]);
+  if (PinUsed(GPIO_SAIR_RX) && PinUsed(GPIO_SAIR_TX)) {
+    SenseairModbus = new TasmotaModbus(Pin(GPIO_SAIR_RX), Pin(GPIO_SAIR_TX));
     uint8_t result = SenseairModbus->Begin(SENSEAIR_MODBUS_SPEED);
     if (result) {
       if (2 == result) { ClaimSerial(); }
@@ -142,27 +144,25 @@ void SenseairInit(void)
 
 void SenseairShow(bool json)
 {
-  char temperature[33];
-  dtostrfd(senseair_temperature, Settings.flag2.temperature_resolution, temperature);
-  char humidity[33];
-  dtostrfd(senseair_humidity, Settings.flag2.temperature_resolution, humidity);
   GetTextIndexed(senseair_types, sizeof(senseair_types), senseair_type -1, kSenseairTypes);
 
   if (json) {
     ResponseAppend_P(PSTR(",\"%s\":{\"" D_JSON_CO2 "\":%d"), senseair_types, senseair_co2);
     if (senseair_type != 2) {
-      ResponseAppend_P(PSTR(",\"" D_JSON_TEMPERATURE "\":%s,\"" D_JSON_HUMIDITY "\":%s"), temperature, humidity);
+      ResponseAppend_P(PSTR(","));
+      ResponseAppendTHD(senseair_temperature, senseair_humidity);
     }
     ResponseJsonEnd();
 #ifdef USE_DOMOTICZ
-    if (0 == tele_period) DomoticzSensor(DZ_AIRQUALITY, senseair_co2);
+    if (0 == tele_period) {
+      DomoticzSensor(DZ_AIRQUALITY, senseair_co2);
+    }
 #endif  // USE_DOMOTICZ
 #ifdef USE_WEBSERVER
   } else {
     WSContentSend_PD(HTTP_SNS_CO2, senseair_types, senseair_co2);
     if (senseair_type != 2) {
-      WSContentSend_PD(HTTP_SNS_TEMP, senseair_types, temperature, TempUnit());
-      WSContentSend_PD(HTTP_SNS_HUM, senseair_types, humidity);
+      WSContentSend_THD(senseair_types, senseair_temperature, senseair_humidity);
     }
 #endif  // USE_WEBSERVER
   }

@@ -55,15 +55,15 @@ void GetFeatures(void)
 #ifdef USE_EMULATION_HUE
   feature_drv1 |= 0x00000200;  // xdrv_20_hue.ino
 #endif
-#if (MQTT_LIBRARY_TYPE == MQTT_PUBSUBCLIENT)
+//#if (MQTT_LIBRARY_TYPE == MQTT_PUBSUBCLIENT)
   feature_drv1 |= 0x00000400;  // xdrv_02_mqtt.ino
-#endif
-#if (MQTT_LIBRARY_TYPE == MQTT_TASMOTAMQTT)
+//#endif
+//#if (MQTT_LIBRARY_TYPE == MQTT_TASMOTAMQTT)
 //  feature_drv1 |= 0x00000800;  // xdrv_02_mqtt.ino
-#endif
-#if (MQTT_LIBRARY_TYPE == MQTT_ESPMQTTARDUINO)      // Obsolete since 6.2.1.11
+//#endif
+//#if (MQTT_LIBRARY_TYPE == MQTT_ESPMQTTARDUINO)      // Obsolete since 6.2.1.11
 //  feature_drv1 |= 0x00001000;  // xdrv_02_mqtt.ino
-#endif
+//#endif
 #ifdef MQTT_HOST_DISCOVERY
   feature_drv1 |= 0x00002000;  // xdrv_02_mqtt.ino
 #endif
@@ -367,7 +367,7 @@ void GetFeatures(void)
 #ifdef USE_PZEM_DC
   feature_sns2 |= 0x00001000;  // xnrg_06_pzem_dc.ino
 #endif
-#ifdef USE_TX20_WIND_SENSOR
+#if defined(USE_TX20_WIND_SENSOR) || defined(USE_TX23_WIND_SENSOR)
   feature_sns2 |= 0x00002000;  // xsns_35_tx20.ino
 #endif
 #ifdef USE_MGC3130
@@ -477,7 +477,7 @@ void GetFeatures(void)
 #ifdef USE_EXS_DIMMER
   feature5 |= 0x00008000;  // xdrv_30_exs_dimmer.ino
 #endif
-#ifdef USE_ARDUINO_SLAVE
+#ifdef USE_TASMOTA_SLAVE
   feature5 |= 0x00010000;  // xdrv_31_arduino_slave.ino
 #endif
 #ifdef USE_HIH6
@@ -513,29 +513,57 @@ void GetFeatures(void)
 #ifdef USE_LE01MR
   feature5 |= 0x08000000;  // xnrg_13_fif_le01mr.ino
 #endif
-
-//  feature5 |= 0x10000000;
-//  feature5 |= 0x20000000;
-//  feature5 |= 0x40000000;
-//  feature5 |= 0x80000000;
+#ifdef USE_AHT1x
+  feature5 |= 0x10000000;  // xsns_63_aht1x.ino
+#endif
+#ifdef USE_WEMOS_MOTOR_V1
+  feature5 |= 0x20000000;  // xdrv_34_wemos_motor_v1.ino
+#endif
+#ifdef USE_DEVICE_GROUPS
+  feature5 |= 0x40000000;  // support_device_groups.ino
+#endif
+#ifdef USE_PWM_DIMMER
+  feature5 |= 0x80000000;  // xdrv_35_pwm_dimmer
+#endif
 
 /*********************************************************************************************/
 
   feature6 = 0x00000000;
 
-//  feature6 |= 0x00000001;
-//  feature6 |= 0x00000002;
-//  feature6 |= 0x00000004;
-//  feature6 |= 0x00000008;
+#ifdef USE_KEELOQ
+  feature6 |= 0x00000001;  // xdrv_36_keeloq.ino
+#endif
+#ifdef USE_HRXL
+  feature6 |= 0x00000002;  // xsns_64_hrxl.ino
+#endif
+#ifdef USE_SONOFF_D1
+  feature6 |= 0x00000004;  // xdrv_37_sonoff_d1.ino
+#endif
+#ifdef USE_HDC1080
+  feature6 |= 0x00000008;  // xsns_65_hdc1080.ino
+#endif
+#ifdef USE_IAQ
+  feature6 |= 0x00000010;  // xsns_66_iAQ.ino
+#endif
+#ifdef USE_DISPLAY_SEVENSEG
+  feature6 |= 0x00000020;  // xdsp_11_sevenseg.ino
+#endif
+#ifdef USE_AS3935
+  feature6 |= 0x00000040;  // xsns_67_as3935.ino
+#endif
+#ifdef USE_PING
+  feature6 |= 0x00000080;  // xdrv_38_ping.ino
+#endif
+#ifdef USE_WINDMETER
+  feature6 |= 0x00000100;  // xsns_68_windmeter.ino
+#endif
+#ifdef USE_OPENTHERM
+  feature6 |= 0x00000200;  // xsns_69_opentherm.ino
+#endif
+#ifdef USE_THERMOSTAT
+  feature6 |= 0x00000400;  // xdrv_39_heating.ino
+#endif
 
-//  feature6 |= 0x00000010;
-//  feature6 |= 0x00000020;
-//  feature6 |= 0x00000040;
-//  feature6 |= 0x00000080;
-
-//  feature6 |= 0x00000100;
-//  feature6 |= 0x00000200;
-//  feature6 |= 0x00000400;
 //  feature6 |= 0x00000800;
 
 //  feature6 |= 0x00001000;
@@ -561,6 +589,7 @@ void GetFeatures(void)
 //  feature6 |= 0x10000000;
 //  feature6 |= 0x20000000;
 //  feature6 |= 0x40000000;
-//  feature6 |= 0x80000000;
-
+#ifdef USE_WEBCAM
+  feature6 |= 0x80000000;
+#endif
 }

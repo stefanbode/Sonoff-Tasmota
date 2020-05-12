@@ -21,19 +21,21 @@
  * Wifi
 \*********************************************************************************************/
 
+// Enable one of three below options for wifi re-connection debugging
+//#define WIFI_FORCE_RF_CAL_ERASE            // Erase rf calibration sector on restart only
+//#define WIFI_RF_MODE_RF_CAL                // Set RF_MODE to RF_CAL for restart and deepsleep during user_rf_pre_init
+//#define WIFI_RF_PRE_INIT                   // Set RF_MODE to RF_CAL for restart, deepsleep and power on during user_rf_pre_init
+
 #ifndef WIFI_RSSI_THRESHOLD
-// Decrease the roam threshold from 10 to 5 to address devices connecting at very low RSSI and being close to inoperative
-#define WIFI_RSSI_THRESHOLD     5          // Difference in dB between current network and scanned network
+#define WIFI_RSSI_THRESHOLD     10         // Difference in dB between current network and scanned network
 #endif
 #ifndef WIFI_RESCAN_MINUTES
-// Increase rescan interval from 44 to 5 minutes to improve ability for devices to reach network harmony
-#define WIFI_RESCAN_MINUTES     5          // Number of minutes between wifi network rescan
+#define WIFI_RESCAN_MINUTES     44         // Number of minutes between wifi network rescan
 #endif
 
 const uint8_t WIFI_CONFIG_SEC = 180;       // seconds before restart
-// Drop from 20 seconds to 5 seconds since we control the reconnections, not the Arduino SDK
-const uint8_t WIFI_CHECK_SEC = 5;          // seconds
-const uint8_t WIFI_RETRY_OFFSET_SEC = 20;  // seconds
+const uint8_t WIFI_CHECK_SEC = 20;         // seconds
+const uint8_t WIFI_RETRY_OFFSET_SEC = 12;  // seconds
 
 #include <ESP8266WiFi.h>                   // Wifi, MQTT, Ota, WifiManager
 #if LWIP_IPV6
@@ -52,8 +54,7 @@ struct WIFI {
   uint8_t config_counter = 0;
   uint8_t mdns_begun = 0;                  // mDNS active
   uint8_t scan_state;
-  uint8_t bssid[6] = {0};
-  uint8_t bssid_last[6] = {0};             // store the last connect bssid
+  uint8_t bssid[6];
   int8_t best_network_db;
 } Wifi;
 
@@ -155,10 +156,10 @@ void WiFiSetSleepMode(void)
 // Sleep explanation: https://github.com/esp8266/Arduino/blob/3f0c601cfe81439ce17e9bd5d28994a7ed144482/libraries/ESP8266WiFi/src/ESP8266WiFiGeneric.cpp#L255
 #if defined(ARDUINO_ESP8266_RELEASE_2_4_1) || defined(ARDUINO_ESP8266_RELEASE_2_4_2)
 #else  // Enabled in 2.3.0, 2.4.0 and stage
-  if (sleep && Settings.flag3.sleep_normal) {  // SetOption60 - Enable normal sleep instead of dynamic sleep
-    WiFi.setSleepMode(WIFI_LIGHT_SLEEP);       // Allow light sleep during idle times
+  if (ssleep && Settings.flag3.sleep_normal) {  // SetOption60 - Enable normal sleep instead of dynamic sleep
+    WiFi.setSleepMode(WIFI_LIGHT_SLEEP);        // Allow light sleep during idle times
   } else {
-    WiFi.setSleepMode(WIFI_MODEM_SLEEP);       // Disable sleep (Esp8288/Arduino core and sdk default)
+    WiFi.setSleepMode(WIFI_MODEM_SLEEP);        // Disable sleep (Esp8288/Arduino core and sdk default)
   }
 #endif
   WifiSetOutputPower();
@@ -187,11 +188,7 @@ void WifiBegin(uint8_t flag, uint8_t channel)
 //  if (WiFi.getPhyMode() != WIFI_PHY_MODE_11N) { WiFi.setPhyMode(WIFI_PHY_MODE_11N); }  // B/G/N
 //  if (WiFi.getPhyMode() != WIFI_PHY_MODE_11G) { WiFi.setPhyMode(WIFI_PHY_MODE_11G); }  // B/G
   if (!WiFi.getAutoConnect()) { WiFi.setAutoConnect(true); }
-
-  // Handle the reconnection in WifiCheckIp() since the autoreconnect keeps sending deauthentication messages which causes the AP to block traffic as it looks like an DoS attack
-  // This needs to be explicitly called as "false" otherwise the default is enabled
-//    WiFi.setAutoReconnect(false);  // See #7621
-
+//  WiFi.setAutoReconnect(true);
   switch (flag) {
   case 0:  // AP1
   case 1:  // AP2
@@ -249,7 +246,7 @@ void WifiBeginAfterScan(void)
   if (2 == Wifi.scan_state) {
     uint8_t* bssid = WiFi.BSSID();                  // Get current bssid
     memcpy((void*) &Wifi.bssid, (void*) bssid, sizeof(Wifi.bssid));
-    Wifi.best_network_db = WiFi.RSSI();                  // Get current rssi and add threshold
+    Wifi.best_network_db = WiFi.RSSI();             // Get current rssi and add threshold
     if (Wifi.best_network_db < -WIFI_RSSI_THRESHOLD) {
       Wifi.best_network_db += WIFI_RSSI_THRESHOLD;
     }
@@ -273,12 +270,6 @@ void WifiBeginAfterScan(void)
   }
   // Scan done
   if (5 == Wifi.scan_state) {
-    uint32_t number_known = 0;                                              // count the number of known AP's so we can clear the Wifi.bssid_last if there is only one
-    int32_t channel_max = 0;                                                // No scan result
-    int8_t ap_max = 3;                                                      // AP default if not found
-    uint8_t bssid_max[6];                                                   // Save last bssid
-    memcpy((void*) &bssid_max, (void*) &Wifi.bssid, sizeof(bssid_max));     // store the strongest bssid
-
     int32_t channel = 0;                            // No scan result
     int8_t ap = 3;                                  // AP default if not found
     uint8_t last_bssid[6];                          // Save last bssid
@@ -302,25 +293,12 @@ void WifiBeginAfterScan(void)
         for (j = 0; j < MAX_SSIDS; j++) {
           if (ssid_scan == SettingsText(SET_STASSID1 + j)) {  // SSID match
             known = true;
-            number_known++;
             if (rssi_scan > Wifi.best_network_db) {      // Best network
               if (sec_scan == ENC_TYPE_NONE || SettingsText(SET_STAPWD1 + j)) {  // Check for passphrase if not open wlan
-                // store the max values in case there is only one AP and we need to try to reconnect
-                memcpy((void*) &bssid_max, (void*) bssid_scan, sizeof(bssid_max));
-                channel_max = chan_scan;
-                ap_max = j;
-                // if the bssid is not the same as the last failed attempt, force picking the next strongest AP to prevent getting stuck on a strong RSSI, but poor channel health
-                for (uint32_t i = 0; i < sizeof(Wifi.bssid_last); i++) {
-                  if (bssid_scan[i] != Wifi.bssid_last[i]) {
-                    Wifi.best_network_db = (int8_t)rssi_scan;
-                    channel = chan_scan;
-                    ap = j;                             // AP1 or AP2
-                    memcpy((void*) &Wifi.bssid, (void*) bssid_scan, sizeof(Wifi.bssid));
-                    // save the last bssid used
-                    memcpy((void*) &Wifi.bssid_last, (void*) bssid_scan, sizeof(Wifi.bssid_last));
-                   break;
-                  }
-                }
+                Wifi.best_network_db = (int8_t)rssi_scan;
+                channel = chan_scan;
+                ap = j;                             // AP1 or AP2
+                memcpy((void*) &Wifi.bssid, (void*) bssid_scan, sizeof(Wifi.bssid));
               }
             }
             break;
@@ -340,16 +318,6 @@ void WifiBeginAfterScan(void)
       WiFi.scanDelete();                            // Clean up Ram
       delay(0);
     }
-
-    // reset the last bssid if there is only one AP to allow the reconnect of the same AP on the next cycle
-    if (number_known == 1) {
-      // clear the last value
-      memset((void*) &Wifi.bssid_last, 0, sizeof(Wifi.bssid_last));
-      memcpy((void*) &Wifi.bssid, (void*) bssid_max, sizeof(Wifi.bssid));
-      channel = channel_max;
-      ap = ap_max;
-    }
-
     Wifi.scan_state = 0;
     // If bssid changed then (re)connect wifi
     for (uint32_t i = 0; i < sizeof(Wifi.bssid); i++) {
@@ -424,13 +392,20 @@ void WifiCheckIp(void)
 #else
   if ((WL_CONNECTED == WiFi.status()) && (static_cast<uint32_t>(WiFi.localIP()) != 0)) {
 #endif  // LWIP_IPV6=1
-    // initialize the last connect bssid since we had a successful connection
-    memset((void*) &Wifi.bssid_last, 0, sizeof(Wifi.bssid_last));
     WifiSetState(1);
     Wifi.counter = WIFI_CHECK_SEC;
     Wifi.retry = Wifi.retry_init;
     if (Wifi.status != WL_CONNECTED) {
       AddLog_P(LOG_LEVEL_INFO, S_LOG_WIFI, PSTR(D_CONNECTED));
+//      AddLog_P(LOG_LEVEL_INFO, PSTR("Wifi: Set IP addresses"));
+      Settings.ip_address[1] = (uint32_t)WiFi.gatewayIP();
+      Settings.ip_address[2] = (uint32_t)WiFi.subnetMask();
+      Settings.ip_address[3] = (uint32_t)WiFi.dnsIP();
+
+      // Save current AP parameters for quick reconnect
+      Settings.wifi_channel = WiFi.channel();
+      uint8_t *bssid = WiFi.BSSID();
+      memcpy((void*) &Settings.wifi_bssid, (void*) bssid, sizeof(Settings.wifi_bssid));
     }
     Wifi.status = WL_CONNECTED;
 #ifdef USE_DISCOVERY
@@ -448,13 +423,12 @@ void WifiCheckIp(void)
     switch (Wifi.status) {
       case WL_CONNECTED:
         AddLog_P(LOG_LEVEL_INFO, S_LOG_WIFI, PSTR(D_CONNECT_FAILED_NO_IP_ADDRESS));
-        // if poor channel health prevents DHCP broadcast from succeeding, restart the request
-        // The code will eventually do a recoonect when the 1/2 interval is hit to try another access point if this remains unsuccessful
-        wifi_station_dhcpc_start();
+        Wifi.status = 0;
+        Wifi.retry = Wifi.retry_init;
         break;
       case WL_NO_SSID_AVAIL:
         AddLog_P(LOG_LEVEL_INFO, S_LOG_WIFI, PSTR(D_CONNECT_FAILED_AP_NOT_REACHED));
-
+        Settings.wifi_channel = 0;  // Disable stored AP
         if (WIFI_WAIT == Settings.sta_config) {
           Wifi.retry = Wifi.retry_init;
         } else {
@@ -465,25 +439,24 @@ void WifiCheckIp(void)
             Wifi.retry = 0;
           }
         }
-
         break;
       case WL_CONNECT_FAILED:
         AddLog_P(LOG_LEVEL_INFO, S_LOG_WIFI, PSTR(D_CONNECT_FAILED_WRONG_PASSWORD));
-
+        Settings.wifi_channel = 0;  // Disable stored AP
         if (Wifi.retry > (Wifi.retry_init / 2)) {
           Wifi.retry = Wifi.retry_init / 2;
         }
         else if (Wifi.retry) {
           Wifi.retry = 0;
         }
-
         break;
       default:  // WL_IDLE_STATUS and WL_DISCONNECTED
-        // log on the 1/2 or full interval
         if (!Wifi.retry || ((Wifi.retry_init / 2) == Wifi.retry)) {
           AddLog_P(LOG_LEVEL_INFO, S_LOG_WIFI, PSTR(D_CONNECT_FAILED_AP_TIMEOUT));
+          Settings.wifi_channel = 0;  // Disable stored AP
         } else {
           if (!strlen(SettingsText(SET_STASSID1)) && !strlen(SettingsText(SET_STASSID2))) {
+            Settings.wifi_channel = 0;  // Disable stored AP
             wifi_config_tool = WIFI_MANAGER;  // Skip empty SSIDs and start Wifi config tool
             Wifi.retry = 0;
           } else {
@@ -491,16 +464,14 @@ void WifiCheckIp(void)
           }
         }
     }
-
     if (Wifi.retry) {
       if (Settings.flag3.use_wifi_scan) {  // SetOption56 - Scan wifi network at restart for configured AP's
-        // check the 1/2 interval as well when rescanning - scan state machine takes 4 seconds
-        if ((Wifi.retry_init == Wifi.retry) || ((Wifi.retry_init / 2) == Wifi.retry)){
+        if (Wifi.retry_init == Wifi.retry) {
           Wifi.scan_state = 1;    // Select scanned SSID
         }
       } else {
         if (Wifi.retry_init == Wifi.retry) {
-          WifiBegin(3, 0);        // Select default SSID
+          WifiBegin(3, Settings.wifi_channel);  // Select default SSID
         }
         if ((Settings.sta_config != WIFI_WAIT) && ((Wifi.retry_init / 2) == Wifi.retry)) {
           WifiBegin(2, 0);        // Select alternate SSID
@@ -602,10 +573,12 @@ void WifiCheck(uint8_t param)
           StopWebserver();
         }
 #ifdef USE_EMULATION
-        if (Settings.flag2.emulation) { UdpConnect(); }
+      if (Settings.flag2.emulation) { UdpConnect(); }
 #endif  // USE_EMULATION
 #endif  // USE_WEBSERVER
-
+#ifdef USE_DEVICE_GROUPS
+        DeviceGroupsStart();
+#endif  // USE_DEVICE_GROUPS
 #ifdef USE_KNX
         if (!knx_started && Settings.flag.knx_enabled) {  // CMND_KNX_ENABLED
           KNXStart();
@@ -618,6 +591,9 @@ void WifiCheck(uint8_t param)
 #ifdef USE_EMULATION
         UdpDisconnect();
 #endif  // USE_EMULATION
+#ifdef USE_DEVICE_GROUPS
+        DeviceGroupsStop();
+#endif  // USE_DEVICE_GROUPS
         Wifi.mdns_begun = 0;
 #ifdef USE_KNX
         knx_started = false;
@@ -642,10 +618,37 @@ String WifiGetOutputPower(void)
   dtostrfd((float)(Settings.wifi_output_power) / 10, 1, stemp1);
   return String(stemp1);
 }
+
 void WifiSetOutputPower(void)
 {
   WiFi.setOutputPower((float)(Settings.wifi_output_power) / 10);
 }
+
+/*
+  See Esp.h, core_esp8266_phy.cpp and test_overrides.ino
+  RF_DEFAULT = 0,  // RF_CAL or not after deep-sleep wake up, depends on init data byte 108.
+  RF_CAL = 1,      // RF_CAL after deep-sleep wake up, there will be large current.
+  RF_NO_CAL = 2,   // no RF_CAL after deep-sleep wake up, there will only be small current.
+  RF_DISABLED = 4  // disable RF after deep-sleep wake up, just like modem sleep, there will be the smallest current.
+*/
+#ifdef WIFI_RF_MODE_RF_CAL
+#ifndef USE_DEEPSLEEP
+RF_MODE(RF_CAL);
+#endif  // USE_DEEPSLEEP
+#endif  // WIFI_RF_MODE_RF_CAL
+
+#ifdef WIFI_RF_PRE_INIT
+bool rf_pre_init_flag = false;
+RF_PRE_INIT()
+{
+#ifndef USE_DEEPSLEEP
+  system_deep_sleep_set_option(1);   // The option is 1 by default.
+  system_phy_set_rfoption(RF_CAL);
+#endif  // USE_DEEPSLEEP
+  system_phy_set_powerup_option(3);  // 3: RF initialization will do the whole RF calibration which will take about 200ms; this increases the current consumption.
+  rf_pre_init_flag = true;
+}
+#endif  // WIFI_RF_PRE_INIT
 
 void WifiConnect(void)
 {
@@ -653,38 +656,108 @@ void WifiConnect(void)
   WifiSetOutputPower();
   WiFi.persistent(false);     // Solve possible wifi init errors
   Wifi.status = 0;
-  // lower the rety times now Tasmota control the reconnections, not the Arduino SDK
-  // Wifi.retry_init = WIFI_RETRY_OFFSET_SEC + ((ESP.getChipId() & 0xF) * 2);
-  Wifi.retry_init = WIFI_RETRY_OFFSET_SEC + (ESP.getChipId() & 0xF);
+  Wifi.retry_init = WIFI_RETRY_OFFSET_SEC + (ESP_getChipId() & 0xF);  // Add extra delay to stop overrun by simultanous re-connects
   Wifi.retry = Wifi.retry_init;
   Wifi.counter = 1;
+
+  memcpy((void*) &Wifi.bssid, (void*) Settings.wifi_bssid, sizeof(Wifi.bssid));
+
+#ifdef WIFI_RF_PRE_INIT
+  if (rf_pre_init_flag) {
+    AddLog_P2(LOG_LEVEL_DEBUG, PSTR(D_LOG_WIFI "Pre-init done"));
+  }
+#endif  // WIFI_RF_PRE_INIT
 }
 
-// Enable from 6.0.0a until 6.1.0a - disabled due to possible cause of bad wifi connect on core 2.3.0
-// Re-enabled from 6.3.0.7 with ESP.restart replaced by ESP.reset
-void WifiDisconnect(void)
+void WifiShutdown(bool option = false)
 {
-  // Courtesy of EspEasy
-  WiFi.persistent(true);      // use SDK storage of SSID/WPA parameters
-  ETS_UART_INTR_DISABLE();
-  wifi_station_disconnect();  // this will store empty ssid/wpa into sdk storage
-  ETS_UART_INTR_ENABLE();
-  WiFi.persistent(false);     // Do not use SDK storage of SSID/WPA parameters
-}
-
-void WifiShutdown(void)
-{
+  // option = false - Legacy disconnect also used by DeepSleep
+  // option = true  - Disconnect with SDK wifi calibrate sector erase when WIFI_FORCE_RF_CAL_ERASE enabled
   delay(100);                 // Allow time for message xfer - disabled v6.1.0b
+
+#ifdef USE_EMULATION
+  UdpDisconnect();
+  delay(100);                 // Flush anything in the network buffers.
+#endif  // USE_EMULATION
+
   if (Settings.flag.mqtt_enabled) {  // SetOption3 - Enable MQTT
     MqttDisconnect();
+    delay(100);               // Flush anything in the network buffers.
   }
-  WifiDisconnect();
+
+#ifdef WIFI_FORCE_RF_CAL_ERASE
+  if (option) {
+    WiFi.disconnect(false);   // Disconnect wifi
+    SettingsErase(4);         // Delete SDK wifi config and calibrate data
+  } else
+#endif  // WIFI_FORCE_RF_CAL_ERASE
+  {
+    // Enable from 6.0.0a until 6.1.0a - disabled due to possible cause of bad wifi connect on core 2.3.0
+    // Re-enabled from 6.3.0.7 with ESP.restart replaced by ESP.reset
+    // Courtesy of EspEasy
+    // WiFi.persistent(true);    // use SDK storage of SSID/WPA parameters
+    ETS_UART_INTR_DISABLE();
+    wifi_station_disconnect();  // this will store empty ssid/wpa into sdk storage
+    ETS_UART_INTR_ENABLE();
+    // WiFi.persistent(false);   // Do not use SDK storage of SSID/WPA parameters
+  }
+  delay(100);                 // Flush anything in the network buffers.
 }
 
 void EspRestart(void)
 {
-  WifiShutdown();
+  ResetPwm();
+  WifiShutdown(true);
   CrashDumpClear();           // Clear the stack dump in RTC
-//  ESP.restart();            // This results in exception 3 on restarts on core 2.3.0
-  ESP.reset();
+  ESP_Restart();
 }
+
+#ifndef ARDUINO_ESP8266_RELEASE_2_3_0
+//
+// Gratuitous ARP, backported from https://github.com/esp8266/Arduino/pull/6889
+//
+extern "C" {
+#if LWIP_VERSION_MAJOR == 1
+#include "netif/wlan_lwip_if.h" // eagle_lwip_getif()
+#include "netif/etharp.h" // gratuitous arp
+#else
+#include "lwip/etharp.h" // gratuitous arp
+#endif
+}
+
+unsigned long wifiTimer = 0;
+
+void stationKeepAliveNow(void) {
+  AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR(D_LOG_WIFI "Sending Gratuitous ARP"));
+  for (netif* interface = netif_list; interface != nullptr; interface = interface->next)
+    if (
+          (interface->flags & NETIF_FLAG_LINK_UP)
+      && (interface->flags & NETIF_FLAG_UP)
+#if LWIP_VERSION_MAJOR == 1
+      && interface == eagle_lwip_getif(STATION_IF) /* lwip1 does not set if->num properly */
+      && (!ip_addr_isany(&interface->ip_addr))
+#else
+      && interface->num == STATION_IF
+      && (!ip4_addr_isany_val(*netif_ip4_addr(interface)))
+#endif
+  )
+  {
+    etharp_gratuitous(interface);
+    break;
+  }
+}
+
+void wifiKeepAlive(void) {
+  uint32_t wifiTimerSec = Settings.param[P_ARP_GRATUITOUS];   // 8-bits number of seconds, or minutes if > 100
+
+  if ((WL_CONNECTED != Wifi.status) || (0 == wifiTimerSec)) { return; }   // quick exit if wifi not connected or feature disabled
+
+  if (TimeReached(wifiTimer)) {
+    stationKeepAliveNow();
+    if (wifiTimerSec > 100) {
+      wifiTimerSec = (wifiTimerSec - 100) * 60;                 // convert >100 as minutes, ex: 105 = 5 minutes, 110 = 10 minutes
+    }
+    SetNextTimeInterval(wifiTimer, wifiTimerSec * 1000);
+  }
+}
+#endif  // ARDUINO_ESP8266_RELEASE_2_3_0

@@ -27,19 +27,20 @@
 #define D_PRFX_COUNTER "Counter"
 #define D_CMND_COUNTERTYPE "Type"
 #define D_CMND_COUNTERDEBOUNCE "Debounce"
-//stb mod
-#define D_CMND_COUNTERDEVIDER "Devider"
+#define D_CMND_COUNTERDEBOUNCELOW "DebounceLow"
+#define D_CMND_COUNTERDEBOUNCEHIGH "DebounceHigh"
 
 const char kCounterCommands[] PROGMEM = D_PRFX_COUNTER "|"  // Prefix
-  "|" D_CMND_COUNTERTYPE "|" D_CMND_COUNTERDEBOUNCE "|" D_CMND_COUNTERDEVIDER;
+  "|" D_CMND_COUNTERTYPE "|" D_CMND_COUNTERDEBOUNCE  "|" D_CMND_COUNTERDEBOUNCELOW "|" D_CMND_COUNTERDEBOUNCEHIGH ;
 
-void (* const CounterCommand[])(void) PROGMEM =
-  { &CmndCounter, &CmndCounterType, &CmndCounterDebounce, &CmndCounterDevider};
-//end
+void (* const CounterCommand[])(void) PROGMEM = {
+  &CmndCounter, &CmndCounterType, &CmndCounterDebounce, &CmndCounterDebounceLow, &CmndCounterDebounceHigh };
 
 struct COUNTER {
   uint32_t timer[MAX_COUNTERS];  // Last counter time in micro seconds
+  uint32_t timer_low_high[MAX_COUNTERS];  // Last low/high counter time in micro seconds
   uint8_t no_pullup = 0;         // Counter input pullup flag (1 = No pullup)
+  uint8_t pin_state = 0;         // LSB0..3 Last state of counter pin; LSB7==0 IRQ is FALLING, LSB7==1 IRQ is CHANGE
   bool any_counter = false;
 } Counter;
 
@@ -54,7 +55,30 @@ void CounterUpdate4(void) ICACHE_RAM_ATTR;
 void CounterUpdate(uint8_t index)
 {
   uint32_t time = micros();
-  uint32_t debounce_time = time - Counter.timer[index];
+  uint32_t debounce_time;
+
+  if (Counter.pin_state) {
+    // handle low and high debounce times when configured
+    if (digitalRead(Pin(GPIO_CNTR1, index)) == bitRead(Counter.pin_state, index)) {
+      // new pin state to be ignored because debounce time was not met during last IRQ
+      return;
+    }
+    debounce_time = time - Counter.timer_low_high[index];
+    if bitRead(Counter.pin_state, index) {
+      // last valid pin state was high, current pin state is low
+      if (debounce_time <= Settings.pulse_counter_debounce_high * 1000) return;
+    } else {
+      // last valid pin state was low, current pin state is high
+      if (debounce_time <= Settings.pulse_counter_debounce_low * 1000) return;
+    }
+    // passed debounce check, save pin state and timing
+    Counter.timer_low_high[index] = time;
+    Counter.pin_state ^= (1<<index);
+    // do not count on rising edge
+    if bitRead(Counter.pin_state, index) return;
+  }
+
+  debounce_time = time - Counter.timer[index];
   if (debounce_time > Settings.pulse_counter_debounce * 1000) {
     Counter.timer[index] = time;
     if (bitRead(Settings.pulse_counter_type, index)) {
@@ -103,16 +127,16 @@ void CounterInit(void)
   function counter_callbacks[] = { CounterUpdate1, CounterUpdate2, CounterUpdate3, CounterUpdate4 };
 
   for (uint32_t i = 0; i < MAX_COUNTERS; i++) {
-    if (pin[GPIO_CNTR1 +i] < 99) {
+    if (PinUsed(GPIO_CNTR1, i)) {
       Counter.any_counter = true;
-      pinMode(pin[GPIO_CNTR1 +i], bitRead(Counter.no_pullup, i) ? INPUT : INPUT_PULLUP);
-      attachInterrupt(pin[GPIO_CNTR1 +i], counter_callbacks[i], FALLING);
-// STB mode
-      //avoid DIV 0 on unitiialized
-      if (Settings.pulse_devider[i] == 0 || Settings.pulse_devider[i] == 65535 ) {
-        Settings.pulse_devider[i] = COUNTERDEVIDER;
+      pinMode(Pin(GPIO_CNTR1, i), bitRead(Counter.no_pullup, i) ? INPUT : INPUT_PULLUP);
+      if ((0 == Settings.pulse_counter_debounce_low) && (0 == Settings.pulse_counter_debounce_high)) {
+        Counter.pin_state = 0;
+        attachInterrupt(Pin(GPIO_CNTR1, i), counter_callbacks[i], FALLING);
+      } else {
+        Counter.pin_state = 0x8f;
+        attachInterrupt(Pin(GPIO_CNTR1, i), counter_callbacks[i], CHANGE);
       }
-// end
     }
   }
 }
@@ -120,7 +144,7 @@ void CounterInit(void)
 void CounterEverySecond(void)
 {
   for (uint32_t i = 0; i < MAX_COUNTERS; i++) {
-    if (pin[GPIO_CNTR1 +i] < 99) {
+    if (PinUsed(GPIO_CNTR1, i)) {
       if (bitRead(Settings.pulse_counter_type, i)) {
         uint32_t time = micros() - Counter.timer[i];
         if (time > 4200000000) {  // 70 minutes
@@ -134,7 +158,7 @@ void CounterEverySecond(void)
 void CounterSaveState(void)
 {
   for (uint32_t i = 0; i < MAX_COUNTERS; i++) {
-    if (pin[GPIO_CNTR1 +i] < 99) {
+    if (PinUsed(GPIO_CNTR1, i)) {
       Settings.pulse_counter[i] = RtcSettings.pulse_counter[i];
     }
   }
@@ -145,15 +169,13 @@ void CounterShow(bool json)
   bool header = false;
   uint8_t dsxflg = 0;
   for (uint32_t i = 0; i < MAX_COUNTERS; i++) {
-    if (pin[GPIO_CNTR1 +i] < 99) {
+    if (PinUsed(GPIO_CNTR1, i)) {
       char counter[33];
       if (bitRead(Settings.pulse_counter_type, i)) {
         dtostrfd((double)RtcSettings.pulse_counter[i] / 1000000, 6, counter);
       } else {
         dsxflg++;
-	//STB mod
-	dtostrfd(RtcSettings.pulse_counter[i]/Settings.pulse_devider[i], 0, counter);
-	//end
+        snprintf_P(counter, sizeof(counter), PSTR("%lu"), RtcSettings.pulse_counter[i]);
       }
 
       if (json) {
@@ -164,10 +186,7 @@ void CounterShow(bool json)
         header = true;
 #ifdef USE_DOMOTICZ
         if ((0 == tele_period) && (1 == dsxflg)) {
-
-	  //STB mod
-          DomoticzSensor(DZ_COUNT, RtcSettings.pulse_counter[i]/Settings.pulse_devider[i]);
-	  //end
+          DomoticzSensor(DZ_COUNT, RtcSettings.pulse_counter[i]);
           dsxflg++;
         }
 #endif  // USE_DOMOTICZ
@@ -194,26 +213,23 @@ void CounterShow(bool json)
 void CmndCounter(void)
 {
   if ((XdrvMailbox.index > 0) && (XdrvMailbox.index <= MAX_COUNTERS)) {
-    if ((XdrvMailbox.data_len > 0) && (pin[GPIO_CNTR1 + XdrvMailbox.index -1] < 99)) {
-//STB mod
-      Settings.pulse_devider[XdrvMailbox.index-1] = Settings.pulse_devider[XdrvMailbox.index-1] == 0 ? COUNTERDEVIDER : Settings.pulse_devider[XdrvMailbox.index-1];
+    if ((XdrvMailbox.data_len > 0) && PinUsed(GPIO_CNTR1, XdrvMailbox.index -1)) {
       if ((XdrvMailbox.data[0] == '-') || (XdrvMailbox.data[0] == '+')) {
-        RtcSettings.pulse_counter[XdrvMailbox.index -1] += XdrvMailbox.payload * Settings.pulse_devider[XdrvMailbox.index-1];
-        Settings.pulse_counter[XdrvMailbox.index -1] += XdrvMailbox.payload * Settings.pulse_devider[XdrvMailbox.index-1];
+        RtcSettings.pulse_counter[XdrvMailbox.index -1] += XdrvMailbox.payload;
+        Settings.pulse_counter[XdrvMailbox.index -1] += XdrvMailbox.payload;
       } else {
-        RtcSettings.pulse_counter[XdrvMailbox.index -1] = XdrvMailbox.payload * Settings.pulse_devider[XdrvMailbox.index-1];
-        Settings.pulse_counter[XdrvMailbox.index -1] = XdrvMailbox.payload * Settings.pulse_devider[XdrvMailbox.index-1];
+        RtcSettings.pulse_counter[XdrvMailbox.index -1] = XdrvMailbox.payload;
+        Settings.pulse_counter[XdrvMailbox.index -1] = XdrvMailbox.payload;
       }
-//end
     }
-    ResponseCmndIdxNumber(RtcSettings.pulse_counter[XdrvMailbox.index -1]/Settings.pulse_devider[XdrvMailbox.index -1]);
+    ResponseCmndIdxNumber(RtcSettings.pulse_counter[XdrvMailbox.index -1]);
   }
 }
 
 void CmndCounterType(void)
 {
   if ((XdrvMailbox.index > 0) && (XdrvMailbox.index <= MAX_COUNTERS)) {
-    if ((XdrvMailbox.payload >= 0) && (XdrvMailbox.payload <= 1) && (pin[GPIO_CNTR1 + XdrvMailbox.index -1] < 99)) {
+    if ((XdrvMailbox.payload >= 0) && (XdrvMailbox.payload <= 1) && PinUsed(GPIO_CNTR1, XdrvMailbox.index -1)) {
       bitWrite(Settings.pulse_counter_type, XdrvMailbox.index -1, XdrvMailbox.payload &1);
       RtcSettings.pulse_counter[XdrvMailbox.index -1] = 0;
       Settings.pulse_counter[XdrvMailbox.index -1] = 0;
@@ -230,22 +246,23 @@ void CmndCounterDebounce(void)
   ResponseCmndNumber(Settings.pulse_counter_debounce);
 }
 
-//stb mod
-void CmndCounterDevider(void)
+void CmndCounterDebounceLow(void)
 {
-    if ((XdrvMailbox.index > 0) && (XdrvMailbox.index <= MAX_COUNTERS)) {
-      if (XdrvMailbox.payload >= 0) {
-        unsigned long _counter;
-        Settings.pulse_devider[XdrvMailbox.index -1] = Settings.pulse_devider[XdrvMailbox.index -1] == 0 ? COUNTERDEVIDER : Settings.pulse_devider[XdrvMailbox.index -1];
-        _counter = RtcSettings.pulse_counter[XdrvMailbox.index -1]/Settings.pulse_devider[XdrvMailbox.index -1];
-        Settings.pulse_devider[XdrvMailbox.index -1] = XdrvMailbox.payload;
-        RtcSettings.pulse_counter[XdrvMailbox.index -1] = _counter * Settings.pulse_devider[XdrvMailbox.index -1];
-      }
-      ResponseCmndNumber(Settings.pulse_devider[XdrvMailbox.index -1]);
-    }
+  if ((XdrvMailbox.payload >= 0) && (XdrvMailbox.payload < 32001)) {
+    Settings.pulse_counter_debounce_low = XdrvMailbox.payload;
+    CounterInit();
+  }
+  ResponseCmndNumber(Settings.pulse_counter_debounce_low);
 }
- //end
 
+void CmndCounterDebounceHigh(void)
+{
+  if ((XdrvMailbox.payload >= 0) && (XdrvMailbox.payload < 32001)) {
+    Settings.pulse_counter_debounce_high = XdrvMailbox.payload;
+    CounterInit();
+  }
+  ResponseCmndNumber(Settings.pulse_counter_debounce_high);
+}
 
 /*********************************************************************************************\
  * Interface

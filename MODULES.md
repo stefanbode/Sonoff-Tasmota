@@ -23,7 +23,7 @@ Module            | Description
 17 WiOn           | WiOn Wifi Smart Socket
 18 Generic        | Any ESP8266/ESP8285 device like WeMos and NodeMCU
 19 Sonoff Dev     | Sonoff Dev Wifi Development Board
-20 H801           | H801 Wifi RGBWW Led Controller
+20 H801           | H801 Wifi 5 Channel LED Controller
 21 Sonoff SC      | Sonoff SC Wifi Environmental Monitor
 22 Sonoff BN-SZ   | Sonoff BN-SZ01 Wifi Ceiling Led (Retired)
 23 Sonoff 4CH Pro | Sonoff 4CH Pro 4-gang Wifi Smart Switch
@@ -57,7 +57,7 @@ Module            | Description
 51 OBI Socket     | OBI Wifi Smart Socket
 52 Teckin         | Teckin SP22 Wifi Smart Switch with Energy Monitoring
 53 AplicWDP303075 | Aplic WDP 303075 CSL Wifi Smart Switch with Energy Monitoring
-54 Tuya Dimmer    | MIUO (and other Tuya based) Wifi Dimmer for Incandescent Lights and Led
+54 TuyaMCU        | Devices with an MCU using Tuya communication protocol for control
 55 Gosund SP1 v23 | Gosund SP1 v2.3 Wifi Smart Switch with Energy Monitoring
 56 ARMTR Dimmer   | ARMtronix Wifi dimmer for Incandescent Lights and Led
 57 SK03 Outdoor   | SK03 Outdoor Wifi Smart Switch with Energy Monitoring
@@ -65,7 +65,7 @@ Module            | Description
 59 Teckin US      | Teckin SP20 and ZooZee SA102 Wifi Smart Switch with Energy Monitoring
 60 Manzoku strip  | Manzoku Wifi Smart Power Strip with four Relays
 61 OBI Socket 2   | OBI 2 Wifi Smart Socket
-62 YTF IR Bridge  | YTF Infra Red Wifi Bridge
+62 YTF IR Bridge  | YTF Universal IR Bridge
 63 Digoo DG-SP202 | Digoo DG-SP202 Dual Wifi Smart Switch with Energy Monitoring
 64 KA10           | Smanergy KA10 Wifi Smart Wall Switch with Energy Monitoring
 65 Luminea ZX2820 | Luminea ZX2820 Wifi Smart Switch with Energy Monitoring
@@ -76,5 +76,7 @@ Module            | Description
 70 Sonoff L1      | Sonoff L1 light strip
 71 Sonoff iFan03  | Sonoff iFan03 Wifi Smart Ceiling Fan with Light
 72 EXS Dimmer     | EXS Wifi Dimmer v4
+73 PWM Dimmer     | Martin Jerry/acenx/Tessan/NTONPOWER SD0x PWM Dimmer Switches
+74 Sonoff D1      | Sonoff D1 Wifi and RF Dimmer
 
-Over 600 additional devices are supported using [templates](TEMPLATES.md).
+Over 1000 additional devices are supported using [templates](TEMPLATES.md).
