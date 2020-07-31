@@ -927,7 +927,7 @@ void CmndShutterPosition(void)
           }
         }
         if (Shutter.direction[index] != new_shutterdirection) {
-          if ((SHT_OFF_ON__OPEN_CLOSE == Shutter.mode) || (SHT_OFF_ON__OPEN_CLOSE_STEPPER == Shutter.mode)) {
+          if (SHT_OFF_ON__OPEN_CLOSE == Shutter.mode || SHT_OFF_ON__OPEN_CLOSE_STEPPER == Shutter.mode || SHT_OFF_ON__SERVO == Shutter.mode) {
             //AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR("SHT: Delay5 5s, xdrv %d"), XdrvMailbox.payload);
             ShutterWaitForMotorStop(index);
             ExecuteCommandPower(Settings.shutter_startrelay[index], 0, SRC_SHUTTER);
@@ -936,9 +936,6 @@ void CmndShutterPosition(void)
             if (Shutter.skip_relay_change == 0) {
               // Code for shutters with circuit safe configuration, switch the direction Relay
               ExecuteCommandPower(Settings.shutter_startrelay[index] +1, new_shutterdirection == 1 ? 0 : 1, SRC_SHUTTER);
-              if (SHT_OFF_ON__SERVO == Shutter.mode) {
-
-              }
               // power on
               ExecuteCommandPower(Settings.shutter_startrelay[index], 1, SRC_SHUTTER);
               if (SHT_OFF_ON__OPEN_CLOSE_STEPPER == Shutter.mode) {
