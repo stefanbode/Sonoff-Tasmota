@@ -34,21 +34,21 @@ uint16_t messwerte[5] = {30,50,70,90,100};
 uint16_t last_execute_step;
 int32_t stop_position_delta = 20;
 
-//enum ShutterModes { SHT_OFF_OPEN__OFF_CLOSE, SHT_OFF_ON__OPEN_CLOSE, SHT_PULSE_OPEN__PULSE_CLOSE, SHT_OFF_ON__OPEN_CLOSE_STEPPER,};
-enum ShutterPositionMode {SHT_TIME, SHT_TIME_UP_DOWN, SHT_TIME_GARAGE, SHT_COUNTER, SHT_PWM_VALUE, SHT_PWM_TIME,};
+const uint8_t MAX_MODES = 7;
+enum ShutterPositionMode {SHT_UNDEF, SHT_TIME, SHT_TIME_UP_DOWN, SHT_TIME_GARAGE, SHT_COUNTER, SHT_PWM_VALUE, SHT_PWM_TIME,};
 enum ShutterSwitchMode {SHT_SWITCH, SHT_PULSE,};
 enum ShutterButtonStates { SHT_NOT_PRESSED, SHT_PRESSED_MULTI, SHT_PRESSED_HOLD, SHT_PRESSED_IMMEDIATE, SHT_PRESSED_EXT_HOLD, SHT_PRESSED_MULTI_SIMULTANEOUS, SHT_PRESSED_HOLD_SIMULTANEOUS, SHT_PRESSED_EXT_HOLD_SIMULTANEOUS,};
 
 const char kShutterCommands[] PROGMEM = D_PRFX_SHUTTER "|"
   D_CMND_SHUTTER_OPEN "|" D_CMND_SHUTTER_CLOSE "|" D_CMND_SHUTTER_TOGGLE "|" D_CMND_SHUTTER_TOGGLEDIR "|" D_CMND_SHUTTER_STOP "|" D_CMND_SHUTTER_POSITION "|"
-  D_CMND_SHUTTER_OPENTIME "|" D_CMND_SHUTTER_CLOSETIME "|" D_CMND_SHUTTER_RELAY "|"
+  D_CMND_SHUTTER_OPENTIME "|" D_CMND_SHUTTER_CLOSETIME "|" D_CMND_SHUTTER_RELAY "|" D_CMND_SHUTTER_MODE "|"
   D_CMND_SHUTTER_SETHALFWAY "|" D_CMND_SHUTTER_SETCLOSE "|" D_CMND_SHUTTER_SETOPEN "|" D_CMND_SHUTTER_INVERT "|" D_CMND_SHUTTER_CLIBRATION "|"
   D_CMND_SHUTTER_MOTORDELAY "|" D_CMND_SHUTTER_FREQUENCY "|" D_CMND_SHUTTER_BUTTON "|" D_CMND_SHUTTER_LOCK "|" D_CMND_SHUTTER_ENABLEENDSTOPTIME "|" D_CMND_SHUTTER_INVERTWEBBUTTONS "|"
   D_CMND_SHUTTER_STOPOPEN "|" D_CMND_SHUTTER_STOPCLOSE "|" D_CMND_SHUTTER_STOPTOGGLE "|" D_CMND_SHUTTER_STOPTOGGLEDIR "|" D_CMND_SHUTTER_STOPPOSITION;
 
 void (* const ShutterCommand[])(void) PROGMEM = {
   &CmndShutterOpen, &CmndShutterClose, &CmndShutterToggle, &CmndShutterToggleDir, &CmndShutterStop, &CmndShutterPosition,
-  &CmndShutterOpenTime, &CmndShutterCloseTime, &CmndShutterRelay,
+  &CmndShutterOpenTime, &CmndShutterCloseTime, &CmndShutterRelay, &CmndShutterMode,
   &CmndShutterSetHalfway, &CmndShutterSetClose, &CmndShutterSetOpen, &CmndShutterInvert, &CmndShutterCalibration , &CmndShutterMotorDelay,
   &CmndShutterFrequency, &CmndShutterButton, &CmndShutterLock, &CmndShutterEnableEndStopTime, &CmndShutterInvertWebButtons,
   &CmndShutterStopOpen, &CmndShutterStopClose, &CmndShutterStopToggle, &CmndShutterStopToggleDir, &CmndShutterStopPosition};
@@ -74,7 +74,6 @@ struct SHUTTER {
   uint16_t close_velocity[MAX_SHUTTERS];  // in relation to open velocity. higher value = faster
   int8_t  direction[MAX_SHUTTERS];        // 1 == UP , 0 == stop; -1 == down
   int8_t  lastdirection[MAX_SHUTTERS];    // last direction (1 == UP , -1 == down)
-  //uint8_t mode = 0;                       // operation mode definition. see enum type above SHT_OFF_OPEN__OFF_CLOSE, SHT_OFF_ON__OPEN_CLOSE, SHT_PULSE_OPEN__PULSE_CLOSE
   uint8_t PositionMode = 0;               // how to calculate actual position: SHT_TIME, SHT_COUNTER, SHT_PWM_VALUE, SHT_PWM_TIME
   uint8_t SwitchMode = 0;                 // how to switch relays: SHT_SWITCH, SHT_PULSE
   int16_t motordelay[MAX_SHUTTERS];       // initial motorstarttime in 0.05sec.
@@ -199,40 +198,36 @@ void ShutterInit(void)
           relay_in_interlock = true;
         }
       }
-      if (relay_in_interlock) {
-        if (Settings.pulse_timer[i] > 0) {
-          Shutter.SwitchMode = SHT_PULSE;
-          if (Settings.pulse_timer[i+1] > 0) {
-            Shutter.PositionMode = SHT_TIME;
-          } else {
-            Shutter.PositionMode = SHT_TIME_GARAGE;
-              AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR("SHT: Garage detected"));
-
-          }
-        } else {
+      switch (Settings.pulse_timer[i]) {
+        case 0:
           Shutter.SwitchMode = SHT_SWITCH;
-          Shutter.PositionMode = SHT_TIME;
+        break;
+        default:
+          Shutter.SwitchMode = SHT_PULSE;
+        break;
+      }
+
+      if (Settings.shutter_mode == SHT_UNDEF) {
+        AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR("SHT: mode undef.. calculate."));
+        switch (Settings.pulse_timer[i+1]) {
+          case 0:
+            Shutter.PositionMode = SHT_TIME_GARAGE;
+            AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR("SHT: Garage detected"));
+          break;
+          default:
+            if (relay_in_interlock) {
+              Shutter.PositionMode = SHT_TIME;
+            } else {
+              Shutter.PositionMode = SHT_TIME_UP_DOWN;
+              if (PinUsed(GPIO_PWM1, i) && PinUsed(GPIO_CNTR1, i)) {
+                Shutter.PositionMode = SHT_COUNTER;
+              }
+            }
+
+          break;
         }
       } else {
-        Shutter.PositionMode = SHT_TIME_UP_DOWN;
-        Shutter.SwitchMode = SHT_SWITCH;
-        if (Settings.pulse_timer[i] > 0) {
-          Shutter.SwitchMode = SHT_PULSE;
-          if (Settings.pulse_timer[i+1] > 0) {
-            Shutter.PositionMode = SHT_TIME_UP_DOWN;
-          } else {
-            Shutter.PositionMode = SHT_TIME_GARAGE;
-              AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR("SHT: Garage detected"));
-
-          }
-        }
-        if (PinUsed(GPIO_PWM1, i) && PinUsed(GPIO_CNTR1, i)) {
-          Shutter.PositionMode = SHT_COUNTER;
-          Shutter.pwm_frequency[i] = 0;
-          Shutter.accelerator[i] = 0;
-          analogWriteFreq(Shutter.pwm_frequency[i]);
-          analogWrite(Pin(GPIO_PWM1, i), 0);
-        }
+        Shutter.PositionMode = Settings.shutter_mode;
       }
 
       TickerShutter.attach_ms(50, ShutterRtc50mS );
@@ -273,6 +268,7 @@ void ShutterInit(void)
     }
     ShutterLimitRealAndTargetPositions(i);
     Settings.shutter_accuracy = 1;
+    Settings.shutter_mode = Shutter.PositionMode;
   }
 }
 
@@ -389,17 +385,14 @@ void ShutterPowerOff(uint8_t i) {
       }
     break;
     case SHT_PULSE:
-      uint8_t cur_relay = Settings.shutter_startrelay[i] + (Shutter.direction[i] == 1 ? 0 : 1) ;
+      uint8_t cur_relay = Settings.shutter_startrelay[i] + (Shutter.direction[i] == 1 ? 0 : (uint8_t)(Shutter.PositionMode == SHT_TIME)) ;
       // we have a momentary switch here. Needs additional pulse on same relay after the end
       if (SRC_PULSETIMER == last_source || SRC_SHUTTER == last_source || SRC_WEBGUI == last_source) {
-        switch (Shutter.PositionMode) {
-          case SHT_TIME_GARAGE:
-            ExecuteCommandPower(Settings.shutter_startrelay[i], 1, SRC_SHUTTER);
-          break;
-          default:
-            ExecuteCommandPower(cur_relay, 1, SRC_SHUTTER);
+        ExecuteCommandPower(cur_relay, 1, SRC_SHUTTER);
+        // switch off direction relay to make it power less
+        if ((1 << (Settings.shutter_startrelay[i])) & power) {
+          ExecuteCommandPower(Settings.shutter_startrelay[i]+1, 0, SRC_SHUTTER);
         }
-
       } else {
         last_source = SRC_SHUTTER;
       }
@@ -930,8 +923,6 @@ void CmndShutterStop(void)
 
 void CmndShutterPosition(void)
 {
-  AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR("SHT: 0_Pos. in: payload %s (%d), payload %d, idx %d, src %d"), XdrvMailbox.data , XdrvMailbox.data_len, XdrvMailbox.payload , XdrvMailbox.index, last_source );
-
   if ((XdrvMailbox.index > 0) && (XdrvMailbox.index <= shutters_present)) {
     if (!(Settings.shutter_options[XdrvMailbox.index-1] & 2)) {
       uint32_t index = XdrvMailbox.index-1;
@@ -991,7 +982,6 @@ void CmndShutterPosition(void)
             case SHT_PWM_TIME:
             case SHT_PWM_VALUE:
             case SHT_TIME_UP_DOWN:
-            case SHT_TIME_GARAGE:
               if (!Shutter.skip_relay_change) {
                 // Code for shutters with circuit safe configuration, switch the direction Relay
                 ExecuteCommandPower(Settings.shutter_startrelay[index] +1, new_shutterdirection == 1 ? 0 : 1, SRC_SHUTTER);
@@ -1003,14 +993,30 @@ void CmndShutterPosition(void)
             case SHT_TIME:
               if (!Shutter.skip_relay_change) {
                 if ( (power >> (Settings.shutter_startrelay[index] -1)) & 3 > 0) {
-                  ExecuteCommandPower(Settings.shutter_startrelay[index] + (new_shutterdirection == 1 ? 1 : 0), 0, SRC_SHUTTER);
+                  ExecuteCommandPower(Settings.shutter_startrelay[index] + (new_shutterdirection == 1 ? 1 : 0), Shutter.SwitchMode == SHT_SWITCH ? 0 : 1, SRC_SHUTTER);
                 }
                 ExecuteCommandPower(Settings.shutter_startrelay[index] + (new_shutterdirection == 1 ? 0 : 1), 1, SRC_SHUTTER);
               }
             break;
-          }
+            case SHT_TIME_GARAGE:
+              if (!Shutter.skip_relay_change) {
+                if (new_shutterdirection == Shutter.lastdirection[index]) {
+                  AddLog_P2(LOG_LEVEL_INFO, PSTR("SHT: Garage not move in this direction: %d"), Shutter.SwitchMode == SHT_PULSE);
+                  for (uint8_t k=0 ; k <= (uint8_t)(Shutter.SwitchMode == SHT_PULSE) ; k++) {
+                    ExecuteCommandPower(Settings.shutter_startrelay[index], 1, SRC_SHUTTER);
+                    delay(500);
+                    ExecuteCommandPower(Settings.shutter_startrelay[index], 0, SRC_SHUTTER);
+                    delay(500);
+                  }
+                  // reset shutter time to avoid 2 seconds above count as runtime
+                  Shutter.time[index] = 0;
+                } // if (new_shutterdirection == Shutter.lastdirection[index])
+                ExecuteCommandPower(Settings.shutter_startrelay[index], 1, SRC_SHUTTER);
+              } // if (!Shutter.skip_relay_change)
+            break;
+          } // switch (Shutter.PositionMode)
           Shutter.switched_relay = 0;
-        }
+        } // if (Shutter.direction[index] != new_shutterdirection)
       } else {
         target_pos_percent = ShutterRealToPercentPosition(Shutter.real_position[index], index);
         ShutterReportPosition(true, index);
@@ -1074,6 +1080,18 @@ void CmndShutterMotorDelay(void)
     char time_chr[10];
     dtostrfd((float)(Settings.shutter_motordelay[XdrvMailbox.index -1]) / steps_per_second, 2, time_chr);
     ResponseCmndIdxChar(time_chr);
+  }
+}
+
+void CmndShutterMode(void)
+{
+  if ((XdrvMailbox.payload >= 0) && (XdrvMailbox.payload <= MAX_MODES)) {
+    Shutter.PositionMode =  XdrvMailbox.payload;
+    Settings.shutter_mode =  XdrvMailbox.payload;
+    ShutterInit();
+    ResponseCmndNumber(XdrvMailbox.payload);  // ????
+  } else {
+    ResponseCmndNumber(Shutter.PositionMode);
   }
 }
 
