@@ -94,6 +94,11 @@ void ShutterLogPos(uint32_t i)
     i+1, Shutter.real_position[i], Shutter.start_position[i], Shutter.target_position[i], Shutter.direction[i], Shutter.motordelay[i], stemp2, Shutter.pwm_frequency[i]);
 }
 
+void ExecuteCommandPowerShutter(uint32_t device, uint32_t state, uint32_t source)
+{
+  if (device <= devices_present) ExecuteCommandPower(device,state,source);
+}
+
 void ShutterRtc50mS(void)
 {
   for (uint8_t i = 0; i < shutters_present; i++) {
@@ -391,34 +396,34 @@ void ShutterDecellerateForStop(uint8_t i)
 void ShutterPowerOff(uint8_t i) {
   AddLog_P2(LOG_LEVEL_INFO, PSTR("SHT: Stop Shutter %d .."), i);
   ShutterDecellerateForStop(i);
-  if ( Settings.shutter_startrelay[index] >= devices_present) return;
+  if (Shutter.direction[i] !=0) {
+    delay(MOTOR_STOP_TIME);
+    Shutter.direction[i] = 0;
+  }
   switch (Shutter.SwitchMode) {
     case SHT_SWITCH:
       if ((1 << (Settings.shutter_startrelay[i]-1)) & power) {
-        ExecuteCommandPower(Settings.shutter_startrelay[i], 0, SRC_SHUTTER);
+        ExecuteCommandPowerShutter(Settings.shutter_startrelay[i], 0, SRC_SHUTTER);
       }
       if ((1 << (Settings.shutter_startrelay[i])) & power) {
-        ExecuteCommandPower(Settings.shutter_startrelay[i]+1, 0, SRC_SHUTTER);
+        ExecuteCommandPowerShutter(Settings.shutter_startrelay[i]+1, 0, SRC_SHUTTER);
       }
     break;
     case SHT_PULSE:
       uint8_t cur_relay = Settings.shutter_startrelay[i] + (Shutter.direction[i] == 1 ? 0 : (uint8_t)(Shutter.PositionMode == SHT_TIME)) ;
       // we have a momentary switch here. Needs additional pulse on same relay after the end
-      if ((SRC_PULSETIMER == last_source || SRC_SHUTTER == last_source || SRC_WEBGUI == last_source) && cur_relay <=devices_present) {
-        ExecuteCommandPower(cur_relay, 1, SRC_SHUTTER);
+      if ((SRC_PULSETIMER == last_source || SRC_SHUTTER == last_source || SRC_WEBGUI == last_source)) {
+        ExecuteCommandPowerShutter(cur_relay, 1, SRC_SHUTTER);
         // switch off direction relay to make it power less
-        if ((1 << (Settings.shutter_startrelay[i])) & power && Settings.shutter_startrelay[i] < devices_present) {
-          ExecuteCommandPower(Settings.shutter_startrelay[i]+1, 0, SRC_SHUTTER);
+        if ((1 << (Settings.shutter_startrelay[i])) & powert) {
+          ExecuteCommandPowerShutter(Settings.shutter_startrelay[i]+1, 0, SRC_SHUTTER);
         }
       } else {
         last_source = SRC_SHUTTER;
       }
     break;
   }
-  if (Shutter.direction[i] !=0) {
-    delay(MOTOR_STOP_TIME);
-    Shutter.direction[i] = 0;
-  }
+
   AddLog_P2(LOG_LEVEL_INFO, PSTR("SHT: Shutter %d stopped"), i);
 }
 
@@ -998,20 +1003,20 @@ void CmndShutterPosition(void)
             case SHT_PWM_TIME:
             case SHT_PWM_VALUE:
             case SHT_TIME_UP_DOWN:
-              if (!Shutter.skip_relay_change && Settings.shutter_startrelay[index] < devices_present) {
+              if (!Shutter.skip_relay_change) {
                 // Code for shutters with circuit safe configuration, switch the direction Relay
-                ExecuteCommandPower(Settings.shutter_startrelay[index] +1, new_shutterdirection == 1 ? 0 : 1, SRC_SHUTTER);
+                ExecuteCommandPowerShutter(Settings.shutter_startrelay[index] +1, new_shutterdirection == 1 ? 0 : 1, SRC_SHUTTER);
                 // power on
-                ExecuteCommandPower(Settings.shutter_startrelay[index], 1, SRC_SHUTTER);
+                ExecuteCommandPowerShutter(Settings.shutter_startrelay[index], 1, SRC_SHUTTER);
               }
-              if (Shutter.PositionMode != SHT_TIME_UP_DOWN) ExecuteCommandPower(Settings.shutter_startrelay[index]+2, 1, SRC_SHUTTER);
+              if (Shutter.PositionMode != SHT_TIME_UP_DOWN) ExecuteCommandPowerShutter(Settings.shutter_startrelay[index]+2, 1, SRC_SHUTTER);
             break;
             case SHT_TIME:
-              if (!Shutter.skip_relay_change && Settings.shutter_startrelay[index] < devices_present) {
+              if (!Shutter.skip_relay_change) {
                 if ( (power >> (Settings.shutter_startrelay[index] -1)) & 3 > 0 ) {
-                  ExecuteCommandPower(Settings.shutter_startrelay[index] + (new_shutterdirection == 1 ? 1 : 0), Shutter.SwitchMode == SHT_SWITCH ? 0 : 1, SRC_SHUTTER);
+                  ExecuteCommandPowerShutter(Settings.shutter_startrelay[index] + (new_shutterdirection == 1 ? 1 : 0), Shutter.SwitchMode == SHT_SWITCH ? 0 : 1, SRC_SHUTTER);
                 }
-                ExecuteCommandPower(Settings.shutter_startrelay[index] + (new_shutterdirection == 1 ? 0 : 1), 1, SRC_SHUTTER);
+                ExecuteCommandPowerShutter(Settings.shutter_startrelay[index] + (new_shutterdirection == 1 ? 0 : 1), 1, SRC_SHUTTER);
               }
             break;
             case SHT_TIME_GARAGE:
@@ -1019,19 +1024,15 @@ void CmndShutterPosition(void)
                 if (new_shutterdirection == Shutter.lastdirection[index]) {
                   AddLog_P2(LOG_LEVEL_INFO, PSTR("SHT: Garage not move in this direction: %d"), Shutter.SwitchMode == SHT_PULSE);
                   for (uint8_t k=0 ; k <= (uint8_t)(Shutter.SwitchMode == SHT_PULSE) ; k++) {
-                    if (Settings.shutter_startrelay[index] <= devices_present) {
-                      ExecuteCommandPower(Settings.shutter_startrelay[index], 1, SRC_SHUTTER);
-                      delay(500);
-                      ExecuteCommandPower(Settings.shutter_startrelay[index], 0, SRC_SHUTTER);
-                      delay(500);
-                    }
+                    ExecuteCommandPowerShutter(Settings.shutter_startrelay[index], 1, SRC_SHUTTER);
+                    delay(500);
+                    ExecuteCommandPowerShutter(Settings.shutter_startrelay[index], 0, SRC_SHUTTER);
+                    delay(500);
                   }
                   // reset shutter time to avoid 2 seconds above count as runtime
                   Shutter.time[index] = 0;
                 } // if (new_shutterdirection == Shutter.lastdirection[index])
-                if (Settings.shutter_startrelay[index] <= devices_present) {
-                  ExecuteCommandPower(Settings.shutter_startrelay[index], 1, SRC_SHUTTER);
-                }
+                ExecuteCommandPowerShutter(Settings.shutter_startrelay[index], 1, SRC_SHUTTER);
               } // if (!Shutter.skip_relay_change)
             break;
           } // switch (Shutter.PositionMode)
@@ -1453,7 +1454,7 @@ bool Xdrv27(uint8_t function)
           result = true;
           Shutter.skip_relay_change = 0;
           AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR("SHT: Skipping switch off relay %d"),i);
-          ExecuteCommandPower(i+1, 0, SRC_SHUTTER);
+          ExecuteCommandPowerShutter(i+1, 0, SRC_SHUTTER);
         }
       break;
       case FUNC_BUTTON_PRESSED:
