@@ -1,7 +1,7 @@
 /*
   xsns_01_counter.ino - Counter sensors (water meters, electricity meters etc.) sensor support for Tasmota
 
-  Copyright (C) 2020  Maarten Damen and Theo Arends
+  Copyright (C) 2021  Maarten Damen and Theo Arends
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -23,6 +23,8 @@
 \*********************************************************************************************/
 
 #define XSNS_01             1
+
+#define USE_AC_ZERO_CROSS_DIMMER 1
 
 #define D_PRFX_COUNTER "Counter"
 #define D_CMND_COUNTERTYPE "Type"
@@ -47,6 +49,9 @@ struct COUNTER {
 
 } Counter;
 
+#ifdef USE_AC_ZERO_CROSS_DIMMER
+#include <Ticker.h>
+Ticker TickerACDimmer;
 struct AC_ZERO_CROSS_DIMMER {
   bool startReSync = false;
   uint32_t current_cycle_ClockCycles = 0;
@@ -55,8 +60,15 @@ struct AC_ZERO_CROSS_DIMMER {
   uint32_t tobe_cycle_timeClockCycles = 0;
   uint32_t lastCycleCount = 0;
   uint32_t currentSteps = 100;
+  uint32_t current_CCy = 0;
+  uint32_t last_CCy = 0;
+  uint32_t init_CCy = 0;
+  uint32_t cycleStart = 0;
+  uint32_t cycleTime = 0;
+  uint32_t min_cycleStart = 100000;
+  uint32_t max_cycleStart = 0;
 } ac_zero_cross_dimmer;
-
+#endif
 
 void ICACHE_RAM_ATTR CounterIsrArg(void *arg) {
   uint32_t index = *static_cast<uint8_t*>(arg);
@@ -83,22 +95,7 @@ void ICACHE_RAM_ATTR CounterIsrArg(void *arg) {
     Counter.pin_state ^= (1<<index);
     // do not count on rising edge
     if bitRead(Counter.pin_state, index) {
-      // PWMfrequency 100
-      // restart PWM each second (german 50Hz has to up to 0.01% deviation)
-      // restart initiated by setting Counter.startReSync = true;
-      if (RtcSettings.pulse_counter[index]%Settings.pwm_frequency == 0 && PinUsed(GPIO_PWM1, index) && Settings.flag4.zerocross_dimmer) {
-        ac_zero_cross_dimmer.currentCycleCount = ESP.getCycleCount();
-        // calculate timeoffset to fire PWM
-        //ac_zero_cross_dimmer.dimm_time_microSeconds = ac_zero_cross_dimmer.tobe_cycle_time_microSeconds * (1024 - Light.fade_start_10[0 + Light.pwm_offset]) / 1024;
-        ac_zero_cross_dimmer.dimm_timeClockCycles = ac_zero_cross_dimmer.tobe_cycle_timeClockCycles * (1024 - Light.fade_start_10[0 + Light.pwm_offset]) / 1024;
-        // 1000µs to ensure not to fire on the next sinus wave
-        if (ac_zero_cross_dimmer.lastCycleCount>0) {
-          ac_zero_cross_dimmer.startReSync = true;
-          ac_zero_cross_dimmer.currentSteps = (ac_zero_cross_dimmer.currentCycleCount-ac_zero_cross_dimmer.lastCycleCount+(ac_zero_cross_dimmer.tobe_cycle_timeClockCycles/2))/(ac_zero_cross_dimmer.tobe_cycle_timeClockCycles);
-          ac_zero_cross_dimmer.current_cycle_ClockCycles = (ac_zero_cross_dimmer.currentCycleCount-ac_zero_cross_dimmer.lastCycleCount)/ac_zero_cross_dimmer.currentSteps;
-        }
-        ac_zero_cross_dimmer.lastCycleCount = ac_zero_cross_dimmer.currentCycleCount;
-      }
+
       return;
     }
   }
@@ -110,6 +107,11 @@ void ICACHE_RAM_ATTR CounterIsrArg(void *arg) {
       RtcSettings.pulse_counter[index] = debounce_time;
     } else {
       RtcSettings.pulse_counter[index]++;
+#ifdef USE_AC_ZERO_CROSS_DIMMER
+      ac_zero_cross_dimmer.cycleTime = clockCyclesToMicroseconds (ESP.getCycleCount()- ac_zero_cross_dimmer.init_CCy);
+      ac_zero_cross_dimmer.init_CCy = ESP.getCycleCount();
+      TickerACDimmer.once_ms(3, FireDimmer );
+#endif
     }
   }
 }
@@ -143,11 +145,29 @@ bool CounterPinState(void)
   return false;
 }
 
+void ICACHE_RAM_ATTR FireDimmer(void)
+{
+  ac_zero_cross_dimmer.last_CCy =  ESP.getCycleCount();
+  ac_zero_cross_dimmer.cycleStart =  clockCyclesToMicroseconds( ac_zero_cross_dimmer.last_CCy-ac_zero_cross_dimmer.init_CCy);
+  ac_zero_cross_dimmer.min_cycleStart = tmin(ac_zero_cross_dimmer.cycleStart,ac_zero_cross_dimmer.min_cycleStart);
+  ac_zero_cross_dimmer.max_cycleStart = tmax(ac_zero_cross_dimmer.cycleStart,ac_zero_cross_dimmer.max_cycleStart);
+  pinMode(Pin(GPIO_PWM1, 0), OUTPUT);
+  if (ac_zero_cross_dimmer.cycleStart<3500) {
+    delayMicroseconds(3500-ac_zero_cross_dimmer.cycleStart);
+  }
+  digitalWrite(Pin(GPIO_PWM1, 0), HIGH);
+  delayMicroseconds(40);
+  digitalWrite(Pin(GPIO_PWM1, 0), LOW);
+  ac_zero_cross_dimmer.current_CCy = ESP.getCycleCount();
+}
+
 void CounterInit(void)
 {
   for (uint32_t i = 0; i < MAX_COUNTERS; i++) {
     if (PinUsed(GPIO_CNTR1, i)) {
+#ifdef USE_AC_ZERO_CROSS_DIMMER
       ac_zero_cross_dimmer.tobe_cycle_timeClockCycles = microsecondsToClockCycles(1000000 / Settings.pwm_frequency);
+#endif
       Counter.any_counter = true;
       pinMode(Pin(GPIO_CNTR1, i), bitRead(Counter.no_pullup, i) ? INPUT : INPUT_PULLUP);
       if ((0 == Settings.pulse_counter_debounce_low) && (0 == Settings.pulse_counter_debounce_high) && !Settings.flag4.zerocross_dimmer) {
@@ -173,6 +193,9 @@ void CounterEverySecond(void)
       }
     }
   }
+  AddLog_P(LOG_LEVEL_DEBUG_MORE, PSTR("CNT: starttime microsec %lu, duration microsec %lu, cycletime microsec %lu, min  %lu, max  %lu"), ac_zero_cross_dimmer.cycleStart,clockCyclesToMicroseconds(ac_zero_cross_dimmer.current_CCy- ac_zero_cross_dimmer.last_CCy) ,ac_zero_cross_dimmer.cycleTime,   ac_zero_cross_dimmer.min_cycleStart,   ac_zero_cross_dimmer.max_cycleStart );
+  ac_zero_cross_dimmer.min_cycleStart = 100000;
+  ac_zero_cross_dimmer.max_cycleStart = 0;
 }
 
 void CounterSaveState(void)
@@ -205,12 +228,12 @@ void CounterShow(bool json)
         ResponseAppend_P(PSTR("%s\"C%d\":%s"), (header)?",":"", i +1, counter);
         header = true;
 #ifdef USE_DOMOTICZ
-        if ((0 == tele_period) && (1 == dsxflg)) {
+        if ((0 == TasmotaGlobal.tele_period) && (1 == dsxflg)) {
           DomoticzSensor(DZ_COUNT, RtcSettings.pulse_counter[i]);
           dsxflg++;
         }
 #endif  // USE_DOMOTICZ
-        if ((0 == tele_period ) && (Settings.flag3.counter_reset_on_tele)) {
+        if ((0 == TasmotaGlobal.tele_period ) && (Settings.flag3.counter_reset_on_tele)) {
           RtcSettings.pulse_counter[i] = 0;
         }
 #ifdef USE_WEBSERVER
@@ -226,35 +249,40 @@ void CounterShow(bool json)
   }
 }
 
+#ifdef USE_AC_ZERO_CROSS_DIMMER
 void SyncACDimmer(void)
 {
   if (ac_zero_cross_dimmer.startReSync) {
-    // get current time because undefined through FUNC_LOOP process.
-    const uint32_t current_cycle = ESP.getCycleCount();
-    digitalWrite(Pin(GPIO_PWM1, 0), LOW);
-    // reset trigger for PWM sync
-    ac_zero_cross_dimmer.startReSync = false;
-    // handle switch off device
-    if (ac_zero_cross_dimmer.dimm_timeClockCycles > ac_zero_cross_dimmer.tobe_cycle_timeClockCycles) return;
-    ac_zero_cross_dimmer.dimm_timeClockCycles = tmax(ac_zero_cross_dimmer.dimm_timeClockCycles, 16000);
-    // because in LOOP calculate the timelag to fire PWM correctly with zero-cross
-    uint32_t timelag_ClockCycles = (current_cycle - ac_zero_cross_dimmer.currentCycleCount)%ac_zero_cross_dimmer.tobe_cycle_timeClockCycles;
-    timelag_ClockCycles = ((ac_zero_cross_dimmer.dimm_timeClockCycles + ac_zero_cross_dimmer.tobe_cycle_timeClockCycles) - timelag_ClockCycles)%ac_zero_cross_dimmer.tobe_cycle_timeClockCycles;
-    delayMicroseconds(clockCyclesToMicroseconds(timelag_ClockCycles));
+    // currently only support one AC Dimmer PWM. Plan to support up to 4 Dimmer on same Phase.
+    for (uint32_t i = 0; i < 1; i++) {
+      if (PinUsed(GPIO_PWM1, i) && PinUsed(GPIO_CNTR1, i))
+      {
+        // get current time because undefined through FUNC_LOOP process.
+        const uint32_t current_cycle = ESP.getCycleCount();
+        //digitalWrite(Pin(GPIO_PWM1, i), LOW);
+        // reset trigger for PWM sync
+        ac_zero_cross_dimmer.startReSync = false;
+        // calculate timeoffset to fire PWM
 
-#ifdef ESP8266
-      pinMode(Pin(GPIO_PWM1, 0), OUTPUT);
-      // short fire to ensure not to hit next sinus curve. 0.78% of duty cycle (10ms) ~4µs
-      uint32_t high = ac_zero_cross_dimmer.current_cycle_ClockCycles / 256;
-      uint32_t low = ac_zero_cross_dimmer.current_cycle_ClockCycles - high;
-      // Find the first GPIO being generated by checking GCC's find-first-set (returns 1 + the bit of the first 1 in an int32_t
-      startWaveformClockCycles(Pin(GPIO_PWM1, 0), high, low, 0, -1, 0, true);
-#else  // ESP32
-      analogWrite(Pin(GPIO_PWM1, 0), 5);
-#endif  // ESP8266 - ESP32
-      AddLog_P2(LOG_LEVEL_DEBUG_MORE, PSTR("CNT: dimm_time_CCs %d, current_cycle_CC: %d, timelag %lu, lastcc %lu, currentSteps %d"), ac_zero_cross_dimmer.dimm_timeClockCycles,ac_zero_cross_dimmer.current_cycle_ClockCycles , timelag_ClockCycles, ac_zero_cross_dimmer.currentCycleCount, ac_zero_cross_dimmer.currentSteps);
+        ac_zero_cross_dimmer.dimm_timeClockCycles = (ac_zero_cross_dimmer.tobe_cycle_timeClockCycles * (1024 - (Light.fade_running ? Light.fade_cur_10[i] : Light.fade_start_10[i]))) / 1024;
+        ac_zero_cross_dimmer.dimm_timeClockCycles = tmax(ac_zero_cross_dimmer.dimm_timeClockCycles, 16000);
+        // because in LOOP calculate the timelag to fire PWM correctly with zero-cross
+        uint32_t timelag_ClockCycles = (current_cycle - ac_zero_cross_dimmer.currentCycleCount)%ac_zero_cross_dimmer.tobe_cycle_timeClockCycles;
+        timelag_ClockCycles = (((ac_zero_cross_dimmer.dimm_timeClockCycles + ac_zero_cross_dimmer.tobe_cycle_timeClockCycles) - timelag_ClockCycles)%ac_zero_cross_dimmer.tobe_cycle_timeClockCycles) / 16;
+        //delayMicroseconds(clockCyclesToMicroseconds(timelag_ClockCycles));
+        //StartPWM();
+#ifdef ESP32
+        analogWrite(Pin(GPIO_PWM1, i), 5);
+#endif  // ESP32
+        AddLog_P(LOG_LEVEL_DEBUG_MORE, PSTR("CNT: [%d] dimm_time_CCs %d, current_cycle_CC: %d, timelag %lu, lastcc %lu, currentSteps %d, curr %d"), i, ac_zero_cross_dimmer.dimm_timeClockCycles,ac_zero_cross_dimmer.current_cycle_ClockCycles , timelag_ClockCycles, ac_zero_cross_dimmer.currentCycleCount, ac_zero_cross_dimmer.currentSteps, Light.fade_cur_10[i]);
+      }
+    }
   }
 }
+#endif
+
+
+
 
 /*********************************************************************************************\
  * Commands
@@ -330,9 +358,11 @@ bool Xsns01(uint8_t function)
       case FUNC_JSON_APPEND:
         CounterShow(1);
         break;
+#ifdef USE_AC_ZERO_CROSS_DIMMER
       case FUNC_LOOP:
         SyncACDimmer();
       break;
+#endif
 #ifdef USE_WEBSERVER
       case FUNC_WEB_SENSOR:
         CounterShow(0);
